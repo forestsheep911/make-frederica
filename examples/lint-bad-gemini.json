@@ -1,0 +1,14 @@
+{
+  "title": "使用 Khoj RAG 和阿里百炼构建 Vibe Secretary 架构",
+  "source_tool": "gemini-cli",
+  "tool_version": "",
+  "model": "Gemini 2.5 Pro",
+  "thinking_mode": "unknown",
+  "project": "vibe-secretary",
+  "session_date": "2026-03-08T16:20:00+08:00",
+  "session_id": "",
+  "tags": ["rag", "khoj", "architecture"],
+  "reusability_score": 82,
+  "summary": "This summary is written in English even though the conversation was Chinese.",
+  "body_markdown": "# Overview\n\nThis is an English summary for a Chinese conversation."
+}

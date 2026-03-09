@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  test-and-smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Run unit tests
+        env:
+          PYTHONPATH: src
+        run: python -m unittest discover -s tests
+
+      - name: Smoke test CLI help
+        env:
+          PYTHONPATH: src
+        run: python -m entrykit.cli --help
+
+      - name: Smoke test offline CLI commands
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m entrykit.cli render-prompt --source-tool codex --include-example > /tmp/rendered-prompt.txt
+          python -m entrykit.cli lint --input examples/coding-session.json --strict
+
+      - name: Verify skill layout
+        run: |
+          test -f skills/frederica-dev/SKILL.md
+          test -f skills/frederica-dev/agents/openai.yaml
+          test -f skills/frederica-dev/references/schema.md
+          test -f skills/frederica-dev/examples/coding-session.json

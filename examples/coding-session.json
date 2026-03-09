@@ -1,0 +1,14 @@
+{
+  "title": "Capture coding-session architecture decisions",
+  "source_tool": "claude-code",
+  "tool_version": "",
+  "model": "Claude Sonnet 4",
+  "thinking_mode": "extra-high",
+  "project": "make-frederica",
+  "session_date": "2026-03-08T16:20:00+08:00",
+  "session_id": "",
+  "tags": ["architecture", "notion", "capture"],
+  "reusability_score": 84,
+  "summary": "A stable JSON schema plus a flexible Markdown body gives Notion capture enough structure without overfitting the note format.",
+  "body_markdown": "# Overview\n\nThis session focused on the shape of the note-taking pipeline.\n\n## Decisions\n\n- Use `KnowledgeEntry` as the stable JSON contract.\n- Keep `thinking_mode` optional in spirit but always present in the JSON, with `unknown` as the fallback.\n- Use the Notion page body for long-form content.\n\n## Risks\n\nThe Notion database schema must match the property names expected by the CLI.\n\n## Reusable patterns\n\n- Schema stability matters more than a perfect first taxonomy.\n- Long-form notes should not be squeezed into database properties."
+}

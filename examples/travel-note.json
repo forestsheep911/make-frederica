@@ -1,0 +1,14 @@
+{
+  "title": "Hangzhou weekend travel notes",
+  "source_tool": "gemini-cli",
+  "tool_version": "",
+  "model": "Gemini",
+  "thinking_mode": "unknown",
+  "project": "personal",
+  "session_date": "2026-03-08T16:20:00+08:00",
+  "session_id": "",
+  "tags": ["travel", "hangzhou", "notes"],
+  "reusability_score": 46,
+  "summary": "A travel-planning conversation captured as a flexible note body rather than an engineering template.",
+  "body_markdown": "# Weekend plan\n\nWe planned a two-day Hangzhou trip around walking, tea, and quieter lakeside areas.\n\n## Highlights\n\n- Start early at the north side of West Lake to avoid heavier crowds.\n- Leave a long afternoon block for Lingyin and nearby tea villages.\n- Keep dinner plans light because transit between scenic areas takes longer than expected.\n\n## Suggestions for next time\n\nRenting bikes only helps on the flatter lake sections. It is less useful once the route shifts toward temple and hill areas."
+}

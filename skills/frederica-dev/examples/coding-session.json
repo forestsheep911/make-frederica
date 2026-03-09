@@ -1,0 +1,14 @@
+{
+  "title": "Stabilize AI chat capture schema for Notion",
+  "source_tool": "codex",
+  "tool_version": "",
+  "model": "gpt-5.4",
+  "thinking_mode": "high",
+  "project": "make-frederica",
+  "session_date": "2026-03-08T16:20:00+08:00",
+  "session_id": "",
+  "tags": ["notion", "knowledge-capture", "schema"],
+  "reusability_score": 88,
+  "summary": "Store searchable metadata in database properties and keep the long-form session record in the Notion page body.",
+  "body_markdown": "# Overview\n\nWe converged on a Notion-first capture flow for AI chat sessions.\n\n## Key decisions\n\n- Use one database for v1 instead of multiple databases.\n- Keep metadata in database properties.\n- Let the long note live in the page body.\n- Do not force fixed section names in the body.\n\n## Why this works\n\nThis keeps the schema stable enough for filtering while preserving enough context to make the note useful later.\n\n## Reusable lessons\n\n- Separate search fields from narrative content.\n- Prefer explicit unknown values over guessed metadata.\n- Design the body format around the content instead of a rigid template."
+}

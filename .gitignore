@@ -1,0 +1,16 @@
+.env
+__pycache__/
+.pytest_cache/
+.venv/
+.venv-build/
+.venv-verify/
+build/
+build/pyinstaller/
+dist/
+*.spec
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.coverage
+.DS_Store
