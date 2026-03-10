@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -24,6 +25,31 @@ from entrykit.reviewing import (
     render_review_prompt,
     review_result_as_json,
 )
+
+
+def configure_stdio() -> None:
+    if os.name != "nt":
+        return
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            reconfigure(encoding="utf-8")
+
+
+def decode_utf8(raw: bytes, source: str) -> str:
+    try:
+        return raw.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise ValueError(
+            f"{source} must be UTF-8 encoded. On Windows PowerShell, prefer a UTF-8 file plus "
+            f"`--input`, or set `[Console]::InputEncoding` / `[Console]::OutputEncoding` to UTF-8 "
+            f"together with `PYTHONUTF8=1` and `PYTHONIOENCODING=utf-8` before retrying."
+        ) from exc
+
+
+def read_text_file(path: Path) -> str:
+    return decode_utf8(path.read_bytes(), f"Input file `{path}`")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -162,8 +188,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def read_input(input_path: Path | None) -> str:
     if input_path is None:
-        return sys.stdin.read()
-    return input_path.read_text(encoding="utf-8")
+        return decode_utf8(sys.stdin.buffer.read(), "stdin")
+    return read_text_file(input_path)
 
 
 def cmd_capture(args: argparse.Namespace) -> int:
@@ -172,7 +198,7 @@ def cmd_capture(args: argparse.Namespace) -> int:
     if args.strict_lint:
         conversation = None
         if args.conversation:
-            conversation = args.conversation.read_text(encoding="utf-8")
+            conversation = read_text_file(args.conversation)
         result = lint_entry(entry, conversation=conversation)
         if not result.ok:
             print(format_lint_result(result), file=sys.stderr)
@@ -267,7 +293,7 @@ def cmd_lint(args: argparse.Namespace) -> int:
     entry = KnowledgeEntry.from_json(raw)
     conversation = None
     if args.conversation:
-        conversation = args.conversation.read_text(encoding="utf-8")
+        conversation = read_text_file(args.conversation)
     result = lint_entry(entry, conversation=conversation)
     if args.json:
         print(result_as_json(result))
@@ -283,7 +309,7 @@ def cmd_review(args: argparse.Namespace) -> int:
     entry = KnowledgeEntry.from_json(raw)
 
     if args.response:
-        review_raw = args.response.read_text(encoding="utf-8")
+        review_raw = read_text_file(args.response)
         result = parse_review_result(review_raw)
         if args.json:
             print(review_result_as_json(result))
@@ -294,13 +320,14 @@ def cmd_review(args: argparse.Namespace) -> int:
     if not args.conversation:
         raise ValueError("--conversation is required when rendering a review prompt")
 
-    conversation = args.conversation.read_text(encoding="utf-8")
+    conversation = read_text_file(args.conversation)
     lint_result = lint_entry(entry, conversation=conversation)
     print(render_review_prompt(entry, conversation=conversation, lint_result=lint_result))
     return 0
 
 
 def main() -> None:
+    configure_stdio()
     parser = build_parser()
     args = parser.parse_args()
     try:

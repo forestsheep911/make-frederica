@@ -41,6 +41,19 @@ Paste that prompt into the target tool together with the conversation content. A
 entrykit capture --input captured.json
 ```
 
+On Windows, especially in PowerShell, prefer the file-based flow above over piping JSON directly into `entrykit`. This avoids mojibake when the shell or Python process does not stay on UTF-8 for non-ASCII text such as Chinese.
+
+If piping is unavoidable, force UTF-8 first:
+
+```powershell
+[Console]::InputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
+```
+
+If you see garbled text such as `鎺掓煡浜` or `骞剁‘璁や簡`, treat it as an encoding failure and retry with `--input` from a UTF-8 file instead of continuing with the same pipe-based command.
+
 If the tool exposes runtime metadata through a command like `/status`, run that first and include the visible output in the captured context so fields such as `model_id` or `session_id` can be filled without guessing.
 
 ## Why this works

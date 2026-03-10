@@ -34,7 +34,10 @@ Turn a finished conversation into a reusable knowledge entry with a stable JSON 
 7. Write the long-form content into `body_markdown`. Adapt the structure to the material instead of forcing fixed headings.
 8. If capture quality matters, especially when another model produced the first draft, optionally run a second review pass with `entrykit review` so a separate LLM can check metadata guessing, language matching, scope coverage, and detail level.
 9. If the user wants the result saved and a local `entrykit` command is available, pass the JSON to `entrykit capture`.
-10. If local execution is needed from the repo checkout, prefer `PYTHONPATH=src python3 -m entrykit.cli ...`. If a reusable local install is needed, prefer a virtualenv rather than installing into a system-managed Python. Do not assume a bare `python` command exists, especially on macOS.
+10. On Windows, especially in PowerShell, do not default to piping non-ASCII JSON directly into `entrykit`. Prefer writing the JSON to a UTF-8 file first and then using `entrykit capture --input <path>`.
+11. If PowerShell piping is unavoidable, explicitly force UTF-8 before running `entrykit`, such as `[Console]::InputEncoding = [System.Text.Encoding]::UTF8`, `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`, `$env:PYTHONUTF8='1'`, and `$env:PYTHONIOENCODING='utf-8'`.
+12. Treat mojibake such as `鎺掓煡浜` or `骞剁‘璁や簡` as an encoding failure rather than a content failure. If it appears, retry with a UTF-8 file-based flow instead of trusting the current terminal pipeline.
+13. If local execution is needed from the repo checkout, prefer `PYTHONPATH=src python3 -m entrykit.cli ...`. If a reusable local install is needed, prefer a virtualenv rather than installing into a system-managed Python. Do not assume a bare `python` command exists, especially on macOS.
 
 ## Output Rules
 
@@ -55,6 +58,7 @@ Turn a finished conversation into a reusable knowledge entry with a stable JSON 
 - Write `body_markdown` in Markdown that can be rendered as a Notion page body.
 - Keep enough context in `body_markdown` that the entry still makes sense weeks later.
 - Default to concise-but-complete coverage. If the user explicitly asks for a detailed, exhaustive, or step-by-step recap, preserve the full sequence instead of compressing aggressively.
+- When running `entrykit` from Windows terminals, preserve UTF-8 end to end for any non-ASCII content. Prefer UTF-8 files over shell pipes for Chinese or other non-ASCII text.
 
 ## Body Guidance
 
@@ -72,6 +76,7 @@ Turn a finished conversation into a reusable knowledge entry with a stable JSON 
   - create one entry for the dominant topic, or
   - tell the user it should be split into multiple captures
 - If local execution is unavailable, still produce the JSON so the user can save it and run `entrykit capture` later.
+- If Windows terminal output shows mojibake, do not keep going with the same command shape. Switch to a UTF-8 file plus `--input`, or explicitly set PowerShell and Python UTF-8 settings before retrying.
 - If a second review pass is available, treat it as advisory quality control rather than a hard blocker. The user may still choose to save the note.
 
 ## Final Self-Check
@@ -84,6 +89,7 @@ Before returning the final JSON, check these points:
 - Are `title`, `summary`, and `body_markdown` written in the dominant language of the conversation?
 - Did the summary scope cover the whole current session unless the user explicitly narrowed it?
 - Did the detail level match the user's latest instruction?
+- If the workflow includes `entrykit` on Windows, did you avoid non-UTF-8 pipes or explicitly force UTF-8 before capture?
 
 ## Example Output
 
