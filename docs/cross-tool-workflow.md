@@ -21,6 +21,14 @@ entrykit capture --input examples/coding-session.json
 
 If another assistant can consume the same skill files, use `frederica` directly there as well. The durable contract is still the same `KnowledgeEntry` JSON.
 
+When the user explicitly invokes `frederica` but only says "summarize" or "总结", the assistant should not silently downgrade to a plain chat recap. It should first clarify the target:
+
+- screen-only summary in the current chat
+- write the result to Notion
+- prepare a local artifact for another backend such as Markdown or a future Obsidian flow
+
+This keeps `frederica` distinct from ordinary summarization and makes persistence an intentional choice.
+
 ### 3. Fallback workflow for tools that only accept prompts
 
 Generate a reusable prompt:

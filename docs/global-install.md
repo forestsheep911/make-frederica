@@ -2,6 +2,9 @@
 
 Use the compiled binary and local skill as machine-level development tools on this Mac.
 
+This document describes the current macOS flow.
+On Windows, the practical development-time global install may instead be a wrapper script that points at the repo checkout plus a Python 3.10+ interpreter. In that case, prefer a direct `python` executable over `py` when choosing the interpreter, because GUI or sandboxed environments may expose `python` while `py` cannot discover any installed runtimes.
+
 ## One-command install
 
 Build first if needed:

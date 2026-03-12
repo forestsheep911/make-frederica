@@ -22,6 +22,23 @@ entrykit inspect-notion
 This is enough for your own machine if Python 3 is already available.
 On macOS, prefer `python3`; do not assume `python` exists.
 
+On Windows, `entrykit` only requires Python `>=3.10`. It does not require Python 3.13 specifically.
+Prefer a directly runnable interpreter such as `python` or an explicit interpreter path over the Windows `py` launcher when you are working inside agent-controlled or GUI app environments, because `python` and `py` do not always discover interpreters the same way.
+
+Examples:
+
+```powershell
+python -m entrykit.cli --help
+```
+
+or:
+
+```powershell
+C:\path\to\python.exe -m entrykit.cli --help
+```
+
+If you expose a global wrapper on Windows, make it prefer a direct Python executable first and only fall back to `py -3` when needed. If interpreter discovery is still unstable, allow an override such as `ENTRYKIT_PYTHON_BIN` pointing at a Python 3.10+ executable.
+
 ## Standalone binary build
 
 To build a single-file executable for the current machine:
@@ -68,6 +85,7 @@ PYTHONPATH=src python3 -m entrykit.cli capture --input captured.json
 ```
 
 Avoid telling the agent to run a bare `python` command unless you have already verified that it exists on that machine.
+On Windows, avoid assuming `py` works just because `python` works. They use different discovery logic and can diverge inside desktop-app sandboxes or other controlled execution environments.
 
 ## Current boundary
 
