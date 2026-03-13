@@ -16,7 +16,7 @@ This repo focuses on three things:
 
 Main parts of the repo:
 
-- `skills/frederica-dev/`: development version of the skill
+- `skills/frederica/`: development version of the skill
 - `src/entrykit/`: supporting CLI and capture logic
 - `tests/`: unit tests for the supporting tooling
 - `scripts/`: build and install helpers for local development
@@ -113,7 +113,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests
 
 Project layout:
 
-- [skills/frederica-dev](/Users/bxu/dev/rdpj/frederica/skills/frederica-dev): development skill files and examples
+- [skills/frederica](/Users/bxu/dev/rdpj/frederica/skills/frederica): development skill files and examples
 - [src/entrykit](/Users/bxu/dev/rdpj/frederica/src/entrykit): supporting CLI, models, linting, Notion integration, review helpers
 - [tests](/Users/bxu/dev/rdpj/frederica/tests): unit tests
 - [docs](/Users/bxu/dev/rdpj/frederica/docs): workflow and install notes

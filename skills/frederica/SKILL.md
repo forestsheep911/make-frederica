@@ -1,5 +1,5 @@
 ---
-name: frederica-dev
+name: frederica
 description: Summarize an AI chat session into a structured knowledge entry that can be written to a Notion knowledge base with `entrykit capture`. Use when a user wants to archive the key outcomes of a conversation, preserve reusable lessons, or turn a completed chat into a searchable note instead of a one-off summary.
 ---
 

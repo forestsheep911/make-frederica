@@ -2,7 +2,7 @@
 
 Inside `make-frederica`, there are two working layers:
 
-- `skills/frederica-dev/`
+- `skills/frederica/`
   - The skill logic and examples
 - `entrykit`
   - The supporting local CLI that validates JSON and writes to Notion
@@ -21,13 +21,17 @@ entrykit capture --input examples/coding-session.json
 
 If another assistant can consume the same skill files, use `frederica` directly there as well. The durable contract is still the same `KnowledgeEntry` JSON.
 
-When the user explicitly invokes `frederica` but only says "summarize" or "总结", the assistant should not silently downgrade to a plain chat recap. It should first clarify the target:
+When the user explicitly invokes `frederica`, the assistant should treat persistence as the default path if exactly one writable backend is already configured.
+
+Ask a follow-up only when the target is genuinely ambiguous, for example:
 
 - screen-only summary in the current chat
 - write the result to Notion
 - prepare a local artifact for another backend such as Markdown or a future Obsidian flow
 
-This keeps `frederica` distinct from ordinary summarization and makes persistence an intentional choice.
+If the user says "save", "archive", or another clearly persistent intent and Notion is the only configured writable backend, the assistant should perform the actual write instead of stopping at a prepared payload.
+
+This keeps `frederica` distinct from ordinary summarization while still making cloud persistence the default behavior when the environment is already configured.
 
 ### 3. Fallback workflow for tools that only accept prompts
 

@@ -28,9 +28,9 @@ This does four things:
 
 ## Local dev vs global stable
 
-Inside this repo, the skill is intentionally named `frederica-dev` so it is easy to distinguish from the installed global copy while developing.
+Inside this repo, the skill uses the same stable name `frederica` as the installed global copy.
 
-`./scripts/install_global.sh` rewrites the copied metadata back to the stable global name `frederica` during installation.
+`./scripts/install_global.sh` copies the skill as-is to the global skill directories.
 
 ## Shell visibility
 
