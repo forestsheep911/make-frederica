@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from entrykit.models import KnowledgeEntry
+from entrykit.notion import BLOCK_WARNING_THRESHOLD, MAX_NOTION_BLOCKS, count_markdown_blocks
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,8 @@ class LintIssue:
 @dataclass(frozen=True)
 class LintResult:
     issues: list[LintIssue]
+    block_count: int
+    block_limit: int = MAX_NOTION_BLOCKS
 
     @property
     def error_count(self) -> int:
@@ -36,6 +39,8 @@ class LintResult:
             "ok": self.ok,
             "errors": self.error_count,
             "warnings": self.warning_count,
+            "block_count": self.block_count,
+            "block_limit": self.block_limit,
             "issues": [
                 {
                     "severity": issue.severity,
@@ -119,6 +124,32 @@ def _likely_under_covers_session(entry: KnowledgeEntry, conversation: str) -> bo
 
 def lint_entry(entry: KnowledgeEntry, conversation: str | None = None) -> LintResult:
     issues: list[LintIssue] = []
+    block_count = count_markdown_blocks(entry.body_markdown)
+
+    if block_count > MAX_NOTION_BLOCKS:
+        issues.append(
+            LintIssue(
+                severity="error",
+                code="notion-block-limit-exceeded",
+                message=(
+                    f"`body_markdown` renders to {block_count} Notion blocks, which exceeds the "
+                    f"limit of {MAX_NOTION_BLOCKS}. Merge adjacent text into fewer blocks and "
+                    "prefer in-block newlines where possible."
+                ),
+            )
+        )
+    elif block_count >= BLOCK_WARNING_THRESHOLD:
+        issues.append(
+            LintIssue(
+                severity="warning",
+                code="notion-block-limit-near",
+                message=(
+                    f"`body_markdown` already renders to {block_count} Notion blocks. This is "
+                    f"close to the Notion limit of {MAX_NOTION_BLOCKS}; prefer in-block newlines "
+                    "and merge adjacent paragraphs or list items when possible."
+                ),
+            )
+        )
 
     if conversation:
         metadata = _visible_metadata(conversation)
@@ -290,15 +321,19 @@ def lint_entry(entry: KnowledgeEntry, conversation: str | None = None) -> LintRe
                 )
             )
 
-    return LintResult(issues=issues)
+    return LintResult(issues=issues, block_count=block_count)
 
 
 def format_lint_result(result: LintResult) -> str:
     if result.ok:
-        return "Lint passed with no issues."
+        return (
+            "Lint passed with no issues.\n"
+            f"Notion block usage: {result.block_count}/{result.block_limit}."
+        )
 
     lines = [
-        f"Lint found {result.error_count} error(s) and {result.warning_count} warning(s)."
+        f"Lint found {result.error_count} error(s) and {result.warning_count} warning(s).",
+        f"Notion block usage: {result.block_count}/{result.block_limit}.",
     ]
     for issue in result.issues:
         lines.append(f"[{issue.severity}] {issue.code}: {issue.message}")

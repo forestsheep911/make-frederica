@@ -4,12 +4,16 @@ import unittest
 
 from entrykit.models import KnowledgeEntry
 from entrykit.notion import (
+    BLOCK_WARNING_THRESHOLD,
+    MAX_NOTION_BLOCKS,
     MODEL_ALIASES,
     build_properties,
     build_schema_patch,
+    count_markdown_blocks,
     cleanup_legacy_model_properties,
     desired_database_properties,
     markdown_to_blocks,
+    validate_block_limit,
 )
 
 
@@ -61,6 +65,24 @@ class NotionTests(unittest.TestCase):
         self.assertEqual(blocks[2]["type"], "bulleted_list_item")
         self.assertEqual(blocks[3]["type"], "numbered_list_item")
         self.assertEqual(blocks[4]["type"], "code")
+
+    def test_paragraph_keeps_in_block_newlines(self) -> None:
+        blocks = markdown_to_blocks("第一行\n第二行\n第三行")
+        self.assertEqual(len(blocks), 1)
+        self.assertEqual(blocks[0]["type"], "paragraph")
+        self.assertEqual(
+            blocks[0]["paragraph"]["rich_text"][0]["text"]["content"],
+            "第一行\n第二行\n第三行",
+        )
+
+    def test_validate_block_limit_rejects_large_body(self) -> None:
+        markdown = "\n\n".join(f"第 {index} 段" for index in range(MAX_NOTION_BLOCKS + 1))
+        with self.assertRaisesRegex(ValueError, "exceeds the limit"):
+            validate_block_limit(markdown)
+
+    def test_count_markdown_blocks_matches_warning_threshold_shape(self) -> None:
+        markdown = "\n\n".join(f"段落 {index}" for index in range(BLOCK_WARNING_THRESHOLD))
+        self.assertEqual(count_markdown_blocks(markdown), BLOCK_WARNING_THRESHOLD)
 
     def test_desired_database_properties(self) -> None:
         properties = desired_database_properties()

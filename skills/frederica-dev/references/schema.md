@@ -38,6 +38,7 @@ Default to the full current conversation unless the user explicitly asks to capt
 - `reusability_score`: Required integer from `0` to `100`.
 - `summary`: Required. One or two sentences suitable for Notion list views. Follow the dominant language of the conversation unless the user explicitly asks for another language.
 - `body_markdown`: Required. Markdown body written for the Notion page content. Follow the dominant language of the conversation unless the user explicitly asks for another language.
+  Keep the rendered result under 100 Notion blocks. Prefer in-block newlines and merged paragraphs over one-line-per-block formatting.
 
 ## Body guidelines
 
@@ -46,6 +47,9 @@ Default to the full current conversation unless the user explicitly asks to capt
 - Keep the note in the dominant language of the source conversation unless the user explicitly asks for translation.
 - Do not switch to English for technical content unless the user explicitly asks for English.
 - Default to concise-but-complete coverage. If the user explicitly requests a detailed or exhaustive recap, preserve the full sequence instead of compressing it heavily.
+- Treat blank lines as costly because they often create extra Notion blocks.
+- Prefer a paragraph with internal line breaks when several short statements belong to the same idea.
+- Use lists only when the list shape adds meaning, not just to create visual separation.
 - Preserve the context needed to make the notes useful later.
 - Capture reusable lessons when they exist.
 - Add steps, risks, conclusions, or actions only when they are relevant.

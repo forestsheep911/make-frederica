@@ -9,6 +9,8 @@ from entrykit.models import KnowledgeEntry
 
 NOTION_VERSION = "2022-06-28"
 MAX_RICH_TEXT = 2000
+MAX_NOTION_BLOCKS = 100
+BLOCK_WARNING_THRESHOLD = 90
 SCHEMA_RENAMES = {
     "Model ID": "Model",
     "Model Label": "Model",
@@ -175,6 +177,21 @@ def markdown_to_blocks(markdown: str) -> list[dict[str, Any]]:
     return blocks
 
 
+def count_markdown_blocks(markdown: str) -> int:
+    return len(markdown_to_blocks(markdown))
+
+
+def validate_block_limit(markdown: str, limit: int = MAX_NOTION_BLOCKS) -> int:
+    block_count = count_markdown_blocks(markdown)
+    if block_count > limit:
+        raise ValueError(
+            f"`body_markdown` renders to {block_count} Notion blocks, which exceeds the "
+            f"limit of {limit}. Merge adjacent text into fewer blocks and prefer in-block "
+            f"newlines before retrying."
+        )
+    return block_count
+
+
 @dataclass
 class NotionClient:
     token: str
@@ -228,10 +245,11 @@ class NotionClient:
         return self._request("PATCH", f"/pages/{page_id}", payload)
 
     def create_page(self, database_id: str, entry: KnowledgeEntry, status: str) -> dict[str, Any]:
+        children = markdown_to_blocks(entry.body_markdown)
         payload = {
             "parent": {"database_id": database_id},
             "properties": build_properties(entry, status),
-            "children": markdown_to_blocks(entry.body_markdown),
+            "children": children,
         }
         return self._request("POST", "/pages", payload)
 

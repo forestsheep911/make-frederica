@@ -24,9 +24,25 @@ Requirements:
 - `body_markdown` must preserve the useful substance of the conversation, but the heading structure should adapt to the content instead of forcing a fixed template.
 - Keep enough concrete context that the note is still useful later.
 - Default to concise-but-complete coverage. If the user explicitly asks for a detailed or exhaustive recap, increase detail instead of compressing aggressively.
+- Keep the rendered Notion page comfortably under the 100-block limit. Prefer merging related sentences into the same paragraph, and use in-block newlines instead of creating a new block for every short line.
+- Treat blank lines as expensive because they often create extra blocks after Markdown-to-Notion conversion. Only split into a new block when the structure materially changes, such as a heading, a real list, a quote, or a code block.
 
 JSON schema:
 {schema}
+
+Low-block body example:
+```markdown
+# Overview
+
+This session focused on tightening the Notion capture rules.
+We moved the 100-block limit from a soft reminder into explicit validation.
+We also clarified that related lines can stay in one paragraph block with internal newlines.
+
+## Practical rule
+
+Prefer one denser paragraph for one idea.
+Only start a new block when the structure really changes.
+```
 """
 
 

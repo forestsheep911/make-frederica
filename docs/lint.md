@@ -14,6 +14,10 @@
   - example: the user asked for `事无巨细`, but the body is still very short
 - likely partial-session coverage
   - example: the source conversation is very long, but the body is short enough that it may only cover the last few turns
+- Notion block-budget risk
+  - example: the body already renders to 90+ blocks and is likely to become fragile
+- Notion block-limit overflow
+  - example: the body renders to more than 100 blocks and should be compressed before capture
 
 ## Usage
 
@@ -54,3 +58,16 @@ entrykit capture --input captured.json --conversation conversation.txt --strict-
 This is still a heuristic local checker. It does not fully understand semantics the way an LLM reviewer could, but it is good at catching the specific classes of mistakes we have already observed in practice.
 
 If you want a second-pass semantic review, use [`entrykit review`](review.md) after lint.
+
+## Notion block checks
+
+`entrykit lint` now also estimates how many Notion blocks `body_markdown` will render into.
+
+The formatted output now prints the current usage directly, for example `Notion block usage: 87/100.` The JSON form also includes `block_count` and `block_limit`.
+
+- `notion-block-limit-near`
+  - warning at 90 blocks or more
+  - treat this as a cue to merge adjacent paragraphs and prefer in-block newlines
+- `notion-block-limit-exceeded`
+  - error above 100 blocks
+  - `entrykit capture` will refuse to write until the body is compressed

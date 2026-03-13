@@ -1,4 +1,4 @@
 interface:
-  display_name: "Frederica Dev"
+  display_name: "Frederica"
   short_description: "Summarize a chat session into a reusable Notion knowledge entry"
-  default_prompt: "Summarize this conversation into a structured knowledge entry and prepare it for Notion capture."
+  default_prompt: "Use $frederica to turn this conversation into a reusable knowledge entry and prepare it for Notion capture."

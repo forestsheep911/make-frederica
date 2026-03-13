@@ -9,26 +9,37 @@ description: Summarize an AI chat session into a structured knowledge entry that
 
 Turn a finished conversation into a reusable knowledge entry with a stable JSON schema and a flexible Markdown body. Use this skill when the conversation itself is the artifact you want to preserve.
 
-If the user explicitly invokes `frederica`, treat that as a signal that they likely want a reusable capture workflow rather than an ordinary in-chat summary. Do not silently collapse back to a plain chat recap unless the user makes that preference clear.
+If the user explicitly invokes `frederica`, treat that as a signal that they likely want a reusable capture workflow rather than an ordinary in-chat summary. When a writable cloud backend is already configured and there is no ambiguity about the target, prefer actual persistence over a screen-only recap. Do not silently collapse back to a plain chat recap unless the user makes that preference clear.
+
+## Compatibility
+
+- Assume the primary writable backend is Notion unless the user explicitly asks for another destination.
+- Assume local `entrykit` access is available when the workflow includes validation, lint, review, or actual Notion capture.
+- Assume Notion writes require the environment expected by `entrykit`, including `NOTION_TOKEN` and `NOTION_DATABASE_ID`.
+- On Windows terminals, prefer UTF-8 file-based handoff into `entrykit` instead of piping non-ASCII JSON through the shell.
+- When working from the repository checkout instead of a global install, prefer `PYTHONPATH=src python3 -m entrykit.cli ...`.
+- For intermediate files, prefer the OS temporary directory over creating `./tmp` inside the current repository. If a repo-local temp file is unavoidable, delete it before finishing.
 
 ## Capture Workflow
 
 1. Confirm the goal is to capture the conversation as a reusable note rather than answer a new question.
-2. If the user asks to "summarize" or "总结" while explicitly invoking `frederica`, clarify the delivery target before proceeding:
-   - screen-only summary in the current chat
-   - persisted capture written to Notion
-   - persisted local artifact such as Markdown or another future backend
-3. If the user clearly wants persistence but does not name a backend, ask a short follow-up instead of assuming one. For example, ask whether the result should be printed only, written to Notion, or prepared for local file storage.
-4. If the user names Notion, use the full capture workflow.
-5. If the user wants persistence to a backend that is not currently wired up, still prepare the `KnowledgeEntry` JSON or Markdown output and state that the last-mile write is not yet implemented for that backend.
-6. If the current tool exposes runtime metadata through a command such as `/status`, inspect it before capturing and reuse any explicitly visible metadata such as model name, exact model identifier, or session id.
-7. Default to the full current conversation as the capture scope. Narrow the scope only when the user explicitly asks to capture a subsection, a recent segment, or a single topic.
-8. Extract the durable outcomes of the conversation:
+2. Determine the persistence target before deciding the output shape.
+3. If exactly one writable backend is already configured and the user invokes `frederica`, treat persistence to that backend as the default path unless the user explicitly asks for screen-only output.
+4. If the user says "保存", "存下来", "归档", "记下来", or another clearly persistent intent, do the actual save when a single configured backend is available. Do not stop at merely preparing JSON or Markdown for that backend.
+5. Ask a follow-up only when the target is genuinely ambiguous, such as:
+   - multiple writable backends are configured
+   - no writable backend is configured
+   - the user explicitly contrasts screen-only output with persistence
+6. If the user names Notion, use the full capture-and-write workflow.
+7. If the user wants persistence to a backend that is not currently wired up, still prepare the `KnowledgeEntry` JSON or Markdown output and state that the last-mile write is not yet implemented for that backend.
+8. If the current tool exposes runtime metadata through a command such as `/status`, inspect it before capturing and reuse any explicitly visible metadata such as model name, exact model identifier, or session id.
+9. Default to the full current conversation as the capture scope. Narrow the scope only when the user explicitly asks to capture a subsection, a recent segment, or a single topic.
+10. Extract the durable outcomes of the conversation:
    - What happened
    - What mattered
    - What is reusable later
-9. Build a `KnowledgeEntry` JSON object that matches [`references/schema.md`](references/schema.md).
-10. Keep the database-facing fields concise and searchable:
+11. Build a `KnowledgeEntry` JSON object that matches [`references/schema.md`](references/schema.md).
+12. Keep the database-facing fields concise and searchable:
    - `title`
    - `source_tool`
    - `tool_version`
@@ -40,18 +51,30 @@ If the user explicitly invokes `frederica`, treat that as a signal that they lik
    - `tags`
    - `reusability_score`
    - `summary`
-11. Write the long-form content into `body_markdown`. Adapt the structure to the material instead of forcing fixed headings.
-12. If capture quality matters, especially when another model produced the first draft, optionally run a second review pass with `entrykit review` so a separate LLM can check metadata guessing, language matching, scope coverage, and detail level.
-13. If the user wants the result saved and a local `entrykit` command is available, pass the JSON to `entrykit capture`.
-14. On Windows, especially in PowerShell, do not default to piping non-ASCII JSON directly into `entrykit`. Prefer writing the JSON to a UTF-8 file first and then using `entrykit capture --input <path>`.
-15. If PowerShell piping is unavoidable, explicitly force UTF-8 before running `entrykit`, such as `[Console]::InputEncoding = [System.Text.Encoding]::UTF8`, `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`, `$env:PYTHONUTF8='1'`, and `$env:PYTHONIOENCODING='utf-8'`.
-16. Treat mojibake such as `鎺掓煡浜` or `骞剁‘璁や簡` as an encoding failure rather than a content failure. If it appears, retry with a UTF-8 file-based flow instead of trusting the current terminal pipeline.
-17. If local execution is needed from the repo checkout, prefer `PYTHONPATH=src python3 -m entrykit.cli ...`. If a reusable local install is needed, prefer a virtualenv rather than installing into a system-managed Python. Do not assume a bare `python` command exists, especially on macOS.
+13. Write the long-form content into `body_markdown`. Adapt the structure to the material instead of forcing fixed headings.
+14. Treat the Notion body as block-limited content rather than unlimited Markdown:
+   - stay comfortably under 100 rendered Notion blocks
+   - prefer in-block newlines over splitting every short sentence into a separate paragraph
+   - use blank lines only when a real structural boundary is needed
+15. If the draft appears likely to exceed the block budget, compress structure before saving:
+   - merge adjacent paragraphs that belong to the same idea
+   - avoid one-line paragraphs when they can be grouped
+   - only keep list formatting when the list itself adds meaning
+16. If capture quality matters, especially when another model produced the first draft, optionally run a second review pass with `entrykit review` so a separate LLM can check metadata guessing, language matching, scope coverage, detail level, and block-budget risk.
+17. If the resolved target is a configured writable backend and local execution is available, execute the save instead of stopping at a prepared payload.
+18. If the user wants the result saved and a local `entrykit` command is available, pass the JSON to `entrykit capture`.
+19. On Windows, especially in PowerShell, do not default to piping non-ASCII JSON directly into `entrykit`. Prefer writing the JSON to a UTF-8 file first and then using `entrykit capture --input <path>`.
+20. When a temporary JSON or transcript file is needed for `entrykit`, put it in the system temp directory rather than `./tmp` under the working repository unless the user explicitly asks otherwise.
+21. If you had to create a repo-local temporary file or directory during capture, remove it before finishing so the worktree does not stay dirty.
+22. If PowerShell piping is unavoidable, explicitly force UTF-8 before running `entrykit`, such as `[Console]::InputEncoding = [System.Text.Encoding]::UTF8`, `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`, `$env:PYTHONUTF8='1'`, and `$env:PYTHONIOENCODING='utf-8'`.
+23. Treat mojibake such as `鎺掓煡浜` or `骞剁‘璁や簡` as an encoding failure rather than a content failure. If it appears, retry with a UTF-8 file-based flow instead of trusting the current terminal pipeline.
+24. If local execution is needed from the repo checkout, prefer `PYTHONPATH=src python3 -m entrykit.cli ...`. If a reusable local install is needed, prefer a virtualenv rather than installing into a system-managed Python. Do not assume a bare `python` command exists, especially on macOS.
 
 ## Output Rules
 
 - Return JSON only when the user asked for a structured capture payload.
-- If the user invoked `frederica` but only said "summarize" or "总结", do not assume they only want prose in the chat window. First disambiguate whether they want screen-only output or a persisted capture.
+- If the user invoked `frederica`, do not treat screen-only prose as the default when a configured writable backend is already available.
+- If the user expressed clear persistence intent and the target backend is unambiguous, perform the save instead of only preparing a capture payload.
 - Prefer a short, concrete `title`.
 - Use `tool_version` for the visible tool or client version when it is explicitly exposed, such as `v0.111.0`. Leave it empty instead of guessing.
 - Use `model` for the visible model name exactly as the tool shows it, such as `gpt-5.4`, `Claude Sonnet 4.5`, or `Gemini 2.5 Pro`. Leave it empty instead of guessing.
@@ -66,6 +89,9 @@ If the user explicitly invokes `frederica`, treat that as a signal that they lik
 - Treat language matching as a hard constraint. Do not switch to English just because the topic is technical.
 - Make `summary` short enough for Notion list views.
 - Write `body_markdown` in Markdown that can be rendered as a Notion page body.
+- Keep the rendered Notion body under 100 blocks. Do not spend blocks on cosmetic spacing.
+- Prefer in-block newlines inside a paragraph when content belongs together.
+- Treat every blank-line paragraph split as a cost against the Notion block budget.
 - Keep enough context in `body_markdown` that the entry still makes sense weeks later.
 - Default to concise-but-complete coverage. If the user explicitly asks for a detailed, exhaustive, or step-by-step recap, preserve the full sequence instead of compressing aggressively.
 - When running `entrykit` from Windows terminals, preserve UTF-8 end to end for any non-ASCII content. Prefer UTF-8 files over shell pipes for Chinese or other non-ASCII text.
@@ -74,6 +100,9 @@ If the user explicitly invokes `frederica`, treat that as a signal that they lik
 
 - Start with a short overview.
 - Choose headings that fit the material. A coding fix, a travel note, and a research summary should not use the same template.
+- Prefer fewer, denser paragraphs over many one-line paragraphs.
+- Use lists only when sequence or grouping matters. If not, fold the content back into normal paragraphs.
+- When several short observations belong to one theme, keep them inside one paragraph block with line breaks instead of spending one block per line.
 - Preserve concrete details that make the note useful later.
 - Capture reusable lessons when they exist.
 - Add risks, actions, steps, alternatives, or conclusions only when they are actually present in the source conversation.
@@ -86,9 +115,10 @@ If the user explicitly invokes `frederica`, treat that as a signal that they lik
   - create one entry for the dominant topic, or
   - tell the user it should be split into multiple captures
 - If local execution is unavailable, still produce the JSON so the user can save it and run `entrykit capture` later.
-- If the user wants persistence but does not specify a destination, ask for the destination instead of silently printing a screen-only summary.
+- If the user wants persistence but does not specify a destination, ask only when the target cannot be resolved from the configured backends.
 - If the requested persistence backend is planned but not yet supported, say that clearly and provide the best intermediate artifact you can produce now.
 - If Windows terminal output shows mojibake, do not keep going with the same command shape. Switch to a UTF-8 file plus `--input`, or explicitly set PowerShell and Python UTF-8 settings before retrying.
+- If any repo-local `tmp/` or other temporary capture directory was created during the workflow, remove it before finishing unless the user explicitly asked to keep it.
 - If a second review pass is available, treat it as advisory quality control rather than a hard blocker. The user may still choose to save the note.
 
 ## Final Self-Check
@@ -101,8 +131,11 @@ Before returning the final JSON, check these points:
 - Are `title`, `summary`, and `body_markdown` written in the dominant language of the conversation?
 - Did the summary scope cover the whole current session unless the user explicitly narrowed it?
 - Did the detail level match the user's latest instruction?
-- If the user invoked `frederica`, did you clarify whether the result should be screen-only or persisted when that was ambiguous?
+- If a writable backend was configured and unambiguous, did you default to actual persistence rather than a screen-only recap?
+- If you asked a follow-up about the destination, was that because the target was genuinely ambiguous rather than just because saving was possible?
 - If the workflow includes `entrykit` on Windows, did you avoid non-UTF-8 pipes or explicitly force UTF-8 before capture?
+- Will `body_markdown` likely stay under 100 rendered Notion blocks after Markdown conversion?
+- Did you use in-block newlines and paragraph merging where they reduce block count without harming readability?
 
 ## Example Output
 
@@ -127,3 +160,4 @@ Before returning the final JSON, check these points:
 
 - Read [`examples/coding-session.md`](examples/coding-session.md) for a sample source conversation and the kind of material worth preserving.
 - Read [`examples/coding-session.json`](examples/coding-session.json) for a complete `KnowledgeEntry` payload that can be sent to `entrykit capture`.
+- Read [`evals/evals.json`](evals/evals.json) for a starter evaluation set covering save intent, language matching, and block-budget discipline.

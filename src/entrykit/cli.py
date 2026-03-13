@@ -13,10 +13,12 @@ from entrykit.notion import (
     NotionClient,
     backfill_model_property,
     NotionError,
+    BLOCK_WARNING_THRESHOLD,
     build_schema_patch,
     build_properties,
     cleanup_legacy_model_properties,
     markdown_to_blocks,
+    validate_block_limit,
 )
 from entrykit.prompts import render_capture_prompt
 from entrykit.reviewing import (
@@ -195,6 +197,7 @@ def read_input(input_path: Path | None) -> str:
 def cmd_capture(args: argparse.Namespace) -> int:
     raw = read_input(args.input)
     entry = KnowledgeEntry.from_json(raw)
+    block_count = validate_block_limit(entry.body_markdown)
     if args.strict_lint:
         conversation = None
         if args.conversation:
@@ -207,6 +210,8 @@ def cmd_capture(args: argparse.Namespace) -> int:
         payload = {
             "properties": build_properties(entry, args.status),
             "children": markdown_to_blocks(entry.body_markdown),
+            "block_count": block_count,
+            "block_limit_warning": block_count >= BLOCK_WARNING_THRESHOLD,
         }
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
