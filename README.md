@@ -6,6 +6,8 @@ This repo is not the final end-user skill distribution repo. Its job is to help 
 
 Today that support layer is mainly `entrykit`, a small CLI for turning AI chat summaries into structured Notion knowledge entries.
 
+For machine-level use, `frederica` and `entrykit` should live under a dedicated user directory such as `~/.frederica` rather than inside whatever project directory happens to be open. This avoids dirtying unrelated git worktrees for a note-capture tool.
+
 This repo focuses on three things:
 
 - developing the `frederica` skill in a local, testable form
@@ -26,6 +28,7 @@ The `entrykit` CLI currently provides these commands:
 - `entrykit capture`: validate a capture payload and write it to Notion
 - `entrykit bootstrap-notion`: align a Notion database schema with the fields `entrykit` expects
 - `entrykit inspect-notion`: print the current Notion database properties
+- `entrykit doctor`: check local runtime prerequisites and Notion configuration
 - `entrykit render-prompt`: print a reusable capture prompt for tools without native integration
 - `entrykit lint`: run schema and heuristic checks on a capture payload
 - `entrykit review`: prepare or validate a second-pass review response for a capture
@@ -54,11 +57,15 @@ entrykit --help
 ./dist/entrykit --help
 ```
 
-See [docs/install-and-build.md](/Users/bxu/dev/rdpj/frederica/docs/install-and-build.md) for local build details and [docs/global-install.md](/Users/bxu/dev/rdpj/frederica/docs/global-install.md) for machine-level installation during development.
+See [docs/install-and-build.md](docs/install-and-build.md) for local build details and [docs/global-install.md](docs/global-install.md) for machine-level installation during development.
 
 ## Configuration
 
-Create a local `.env` file from the example:
+For machine-level use, the default config location is `~/.frederica/config/.env`.
+
+For local repo development, you can still point commands at a repo-local file with `--env-file .env`.
+
+Create a local `.env` file from the example if you are developing inside this repository:
 
 ```bash
 cp .env.example .env
@@ -74,6 +81,12 @@ Do not commit `.env`. Only `.env.example` belongs in the repository.
 ## Quick start
 
 Inspect the configured Notion database with the supporting CLI:
+
+```bash
+entrykit doctor
+```
+
+Then inspect the configured Notion database:
 
 ```bash
 entrykit inspect-notion
@@ -113,12 +126,12 @@ PYTHONPATH=src python3 -m unittest discover -s tests
 
 Project layout:
 
-- [skills/frederica](/Users/bxu/dev/rdpj/frederica/skills/frederica): development skill files and examples
-- [src/entrykit](/Users/bxu/dev/rdpj/frederica/src/entrykit): supporting CLI, models, linting, Notion integration, review helpers
-- [tests](/Users/bxu/dev/rdpj/frederica/tests): unit tests
-- [docs](/Users/bxu/dev/rdpj/frederica/docs): workflow and install notes
-- [examples](/Users/bxu/dev/rdpj/frederica/examples): sample capture payloads
-- [scripts](/Users/bxu/dev/rdpj/frederica/scripts): build and install helpers
+- [skills/frederica](skills/frederica): development skill files and examples
+- [src/entrykit](src/entrykit): supporting CLI, models, linting, Notion integration, review helpers
+- [tests](tests): unit tests
+- [docs](docs): workflow and install notes
+- [examples](examples): sample capture payloads
+- [scripts](scripts): build and install helpers
 
 ## Repository role
 
@@ -130,12 +143,12 @@ Use this repo to make and verify the skill.
 
 ## Documentation
 
-- [docs/install-and-build.md](/Users/bxu/dev/rdpj/frederica/docs/install-and-build.md)
-- [docs/global-install.md](/Users/bxu/dev/rdpj/frederica/docs/global-install.md)
-- [docs/lint.md](/Users/bxu/dev/rdpj/frederica/docs/lint.md)
-- [docs/review.md](/Users/bxu/dev/rdpj/frederica/docs/review.md)
-- [docs/cross-tool-workflow.md](/Users/bxu/dev/rdpj/frederica/docs/cross-tool-workflow.md)
+- [docs/install-and-build.md](docs/install-and-build.md)
+- [docs/global-install.md](docs/global-install.md)
+- [docs/lint.md](docs/lint.md)
+- [docs/review.md](docs/review.md)
+- [docs/cross-tool-workflow.md](docs/cross-tool-workflow.md)
 
 ## License
 
-MIT. See [LICENSE](/Users/bxu/dev/rdpj/frederica/LICENSE).
+MIT. See [LICENSE](LICENSE).

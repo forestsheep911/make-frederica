@@ -7,6 +7,8 @@ Inside `make-frederica`, there are two working layers:
 - `entrykit`
   - The supporting local CLI that validates JSON and writes to Notion
 
+For machine-level use, keep the runtime under `~/.frederica` instead of the current project directory. That directory is the right place for the installed binary, config, caches, and future backend tooling.
+
 ## Recommended local workflow
 
 ### 1. Native workflow in Codex
@@ -14,6 +16,7 @@ Inside `make-frederica`, there are two working layers:
 Use the local skill to shape the summary, then write the result to Notion:
 
 ```bash
+entrykit doctor
 entrykit capture --input examples/coding-session.json
 ```
 
@@ -30,6 +33,8 @@ Ask a follow-up only when the target is genuinely ambiguous, for example:
 - prepare a local artifact for another backend such as Markdown or a future Obsidian flow
 
 If the user says "save", "archive", or another clearly persistent intent and Notion is the only configured writable backend, the assistant should perform the actual write instead of stopping at a prepared payload.
+
+Before the write attempt, it should check the local tool layer first, ideally with `entrykit doctor`. If the tool layer is available but Notion config is missing, it should ask for the config path or guide the user to `~/.frederica/config/.env` before asking them to paste secrets into chat.
 
 This keeps `frederica` distinct from ordinary summarization while still making cloud persistence the default behavior when the environment is already configured.
 
@@ -73,6 +78,7 @@ If the tool exposes runtime metadata through a command like `/status`, run that 
 - The summary logic stays stable across tools because the JSON contract is fixed.
 - The last-mile Notion write stays local, so secrets do not need to be pasted into other tools.
 - You can improve the skill and the supporting CLI independently while keeping the same `KnowledgeEntry` schema.
+- The tool does not need to create its own dependency directories inside unrelated git repositories.
 
 ## Current boundary
 

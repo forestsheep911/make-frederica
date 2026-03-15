@@ -7,7 +7,15 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from entrykit.cli import cmd_capture, decode_utf8, read_input, read_text_file
+from entrykit.cli import (
+    cmd_capture,
+    cmd_doctor,
+    decode_utf8,
+    doctor_result,
+    format_doctor_result,
+    read_input,
+    read_text_file,
+)
 
 
 class CliEncodingTests(unittest.TestCase):
@@ -68,6 +76,43 @@ class CliEncodingTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "exceeds the limit"):
                 cmd_capture(args)
+
+    def test_doctor_reports_missing_config(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            args = type("Args", (), {"env_file": None, "json": False})()
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    with patch("shutil.which", return_value=None):
+                        result = doctor_result(args)
+
+            self.assertFalse(result["ok"])
+            checks = result["checks"]
+            self.assertFalse(checks["uv"]["ok"])
+            self.assertFalse(checks["env_file"]["ok"])
+            self.assertIn("NOTION_TOKEN", checks["notion_config"]["missing"])
+            text = format_doctor_result(result)
+            self.assertIn("Next step:", text)
+
+    def test_cmd_doctor_returns_zero_when_configured(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            env_path = home / ".frederica" / "config" / ".env"
+            env_path.parent.mkdir(parents=True, exist_ok=True)
+            env_path.write_text(
+                "NOTION_TOKEN=test-token\nNOTION_DATABASE_ID=test-db\n",
+                encoding="utf-8",
+            )
+            args = type("Args", (), {"env_file": None, "json": True})()
+
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    with patch("shutil.which", return_value="/usr/bin/uv"):
+                        with patch("sys.stdout", new=io.StringIO()) as stdout:
+                            code = cmd_doctor(args)
+
+            self.assertEqual(code, 0)
+            self.assertIn('"ok": true', stdout.getvalue())
 
 
 if __name__ == "__main__":

@@ -2,6 +2,8 @@
 
 These notes are for local development inside `make-frederica`.
 
+For normal day-to-day use, keep `frederica` tooling out of the current project directory. The intended machine-level home is `~/.frederica`, which can hold the binary, config, caches, and future backend adapters without dirtying unrelated git worktrees.
+
 ## Local Python install
 
 For local development, either run the module directly:
@@ -56,16 +58,17 @@ That script:
 
 ## Global use on the same machine
 
-After building, place the binary somewhere on your `PATH`, for example:
+After building, install the binary into the dedicated user tool directory:
 
 ```bash
-cp dist/entrykit ~/.local/bin/entrykit
+mkdir -p ~/.frederica/bin
+cp dist/entrykit ~/.frederica/bin/entrykit
 ```
 
-or:
+Then expose that directory on your `PATH`, for example:
 
 ```bash
-cp dist/entrykit /usr/local/bin/entrykit
+export PATH="$HOME/.frederica/bin:$PATH"
 ```
 
 Then other local tools can call `entrykit` directly without caring about `PYTHONPATH` or the project checkout layout.

@@ -5,6 +5,21 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+def frederica_home() -> Path:
+    override = os.getenv("FREDERICA_HOME", "").strip()
+    if override:
+        return Path(override).expanduser()
+    return Path.home() / ".frederica"
+
+
+def default_env_path() -> Path:
+    return frederica_home() / "config" / ".env"
+
+
+def legacy_env_path() -> Path:
+    return Path.home() / ".config" / "entrykit" / "env.sh"
+
+
 def load_dotenv(path: Path) -> None:
     if not path.exists():
         return
@@ -13,6 +28,8 @@ def load_dotenv(path: Path) -> None:
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
+        if line.startswith("export "):
+            line = line[len("export ") :].strip()
         key, value = line.split("=", 1)
         os.environ.setdefault(key.strip(), value.strip().strip("'").strip('"'))
 
@@ -25,8 +42,10 @@ class Settings:
     @classmethod
     def load(cls, env_path: Path | None = None) -> "Settings":
         if env_path is None:
-            env_path = Path.cwd() / ".env"
+            env_path = default_env_path()
         load_dotenv(env_path)
+        if env_path == default_env_path():
+            load_dotenv(legacy_env_path())
 
         token = os.getenv("NOTION_TOKEN", "").strip()
         database_id = os.getenv("NOTION_DATABASE_ID", "").strip()

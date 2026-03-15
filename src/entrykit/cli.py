@@ -3,10 +3,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 
-from entrykit.config import Settings
+from entrykit.config import Settings, default_env_path, frederica_home
 from entrykit.linting import format_lint_result, lint_entry, result_as_json
 from entrykit.models import KnowledgeEntry
 from entrykit.notion import (
@@ -27,6 +28,9 @@ from entrykit.reviewing import (
     render_review_prompt,
     review_result_as_json,
 )
+
+
+MIN_PYTHON = (3, 10)
 
 
 def configure_stdio() -> None:
@@ -119,6 +123,21 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path(".env"),
         help="Path to a .env file. Defaults to ./.env.",
+    )
+
+    doctor = subparsers.add_parser(
+        "doctor",
+        help="Check local runtime prerequisites and Notion configuration.",
+    )
+    doctor.add_argument(
+        "--env-file",
+        type=Path,
+        help="Optional explicit .env path. Defaults to ~/.frederica/config/.env.",
+    )
+    doctor.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the doctor result as JSON.",
     )
 
     render_prompt = subparsers.add_parser(
@@ -283,6 +302,92 @@ def cmd_inspect_notion(args: argparse.Namespace) -> int:
     return 0
 
 
+def doctor_result(args: argparse.Namespace) -> dict[str, object]:
+    env_path = args.env_file or default_env_path()
+    python_version = ".".join(str(part) for part in sys.version_info[:3])
+    python_ok = sys.version_info >= MIN_PYTHON
+    uv_path = shutil.which("uv")
+    env_exists = env_path.exists()
+
+    missing_env: list[str] = []
+    settings_ok = True
+    try:
+        Settings.load(args.env_file)
+    except ValueError as exc:
+        settings_ok = False
+        text = str(exc)
+        marker = "Missing required environment variables:"
+        if marker in text:
+            missing = text.split(marker, 1)[1].strip()
+            missing_env = [item.strip() for item in missing.split(",") if item.strip()]
+
+    return {
+        "ok": python_ok and settings_ok,
+        "frederica_home": str(frederica_home()),
+        "env_file": str(env_path),
+        "checks": {
+            "python": {
+                "ok": python_ok,
+                "version": python_version,
+                "required": ">=" + ".".join(str(part) for part in MIN_PYTHON),
+            },
+            "uv": {
+                "ok": uv_path is not None,
+                "path": uv_path or "",
+            },
+            "env_file": {
+                "ok": env_exists,
+                "path": str(env_path),
+            },
+            "notion_config": {
+                "ok": settings_ok,
+                "missing": missing_env,
+            },
+        },
+    }
+
+
+def format_doctor_result(result: dict[str, object]) -> str:
+    checks = result["checks"]
+    assert isinstance(checks, dict)
+    python_check = checks["python"]
+    uv_check = checks["uv"]
+    env_check = checks["env_file"]
+    notion_check = checks["notion_config"]
+    assert isinstance(python_check, dict)
+    assert isinstance(uv_check, dict)
+    assert isinstance(env_check, dict)
+    assert isinstance(notion_check, dict)
+
+    lines = [
+        f"Frederica home: {result['frederica_home']}",
+        f"Config file: {result['env_file']}",
+        f"[{'ok' if python_check['ok'] else 'missing'}] Python {python_check['version']} (required {python_check['required']})",
+        f"[{'ok' if uv_check['ok'] else 'missing'}] uv {uv_check['path'] or 'not found'}",
+        f"[{'ok' if env_check['ok'] else 'missing'}] env file {env_check['path']}",
+    ]
+    missing = notion_check.get("missing", [])
+    if notion_check["ok"]:
+        lines.append("[ok] Notion config is complete")
+    else:
+        lines.append(
+            "[missing] Notion config missing: " + ", ".join(missing) if missing else "[missing] Notion config is incomplete"
+        )
+        lines.append(
+            "Next step: create or update ~/.frederica/config/.env, or provide an explicit --env-file path before capture."
+        )
+    return "\n".join(lines)
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    result = doctor_result(args)
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print(format_doctor_result(result))
+    return 0 if result["ok"] else 1
+
+
 def cmd_render_prompt(args: argparse.Namespace) -> int:
     print(
         render_capture_prompt(
@@ -342,6 +447,8 @@ def main() -> None:
             raise SystemExit(cmd_bootstrap_notion(args))
         if args.command == "inspect-notion":
             raise SystemExit(cmd_inspect_notion(args))
+        if args.command == "doctor":
+            raise SystemExit(cmd_doctor(args))
         if args.command == "render-prompt":
             raise SystemExit(cmd_render_prompt(args))
         if args.command == "lint":
