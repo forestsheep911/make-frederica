@@ -18,6 +18,12 @@
       "prompt": "请事无巨细地归纳这次长对话并准备存档，不过注意 Notion 不能超过 100 个 block。内容里有很多一行一条的小观察，请你在不丢信息的前提下尽量压缩 block 数，并优先考虑 block 内换行。",
       "expected_output": "Skill should match the requested detail level while still compressing the body structure to stay under the Notion block budget.",
       "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "用 frederica 把这次对话直接保存到 Notion。当前环境里 `entrykit doctor` 可以直接通过，但我不想每次都重复检查全局 python 和全局 uv；只有 entrykit 不可用时，再去诊断基础环境。",
+      "expected_output": "Skill should take the fast-path preflight, treat runnable entrykit as sufficient to proceed to configuration checks, and avoid redundant Python or uv checks unless entrykit availability fails.",
+      "files": []
     }
   ]
 }

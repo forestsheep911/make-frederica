@@ -1,6 +1,6 @@
 ---
 name: frederica
-description: Summarize an AI chat session into a structured knowledge entry that can be written to a Notion knowledge base with `entrykit capture`. Use when a user wants to archive the key outcomes of a conversation, preserve reusable lessons, or turn a completed chat into a searchable note instead of a one-off summary.
+description: "[dev 2026-03-15.2] Summarize an AI chat session into a structured knowledge entry that can be written to a Notion knowledge base with `entrykit capture`. Use when a user wants to archive the key outcomes of a conversation, preserve reusable lessons, or turn a completed chat into a searchable note instead of a one-off summary."
 ---
 
 # Frederica
@@ -14,11 +14,63 @@ If the user explicitly invokes `frederica`, treat that as a signal that they lik
 ## Compatibility
 
 - Assume the primary writable backend is Notion unless the user explicitly asks for another destination.
-- Assume local `entrykit` access is available when the workflow includes validation, lint, review, or actual Notion capture.
+- Do not assume local `entrykit` access is available. Check for it before promising persistence.
+- Treat Notion writes as dependent on a successful local preflight, not just on the user's intent.
 - Assume Notion writes require the environment expected by `entrykit`, including `NOTION_TOKEN` and `NOTION_DATABASE_ID`.
 - On Windows terminals, prefer UTF-8 file-based handoff into `entrykit` instead of piping non-ASCII JSON through the shell.
 - When working from the repository checkout instead of a global install, prefer `PYTHONPATH=src python3 -m entrykit.cli ...`.
 - For intermediate files, prefer the OS temporary directory over creating `./tmp` inside the current repository. If a repo-local temp file is unavoidable, delete it before finishing.
+
+## Preflight Order
+
+Before any Notion write attempt, use this order:
+
+1. Check local execution capability first.
+2. Use a fast-path tool check: see whether `entrykit` is actually runnable.
+3. Only if that fast-path check fails, run fallback diagnosis in this order:
+   - confirm global Python
+   - confirm global `uv` when the environment policy expects it
+   - then retry or reinterpret `entrykit` availability, including repo-checkout execution
+4. Check whether the configured `frederica` runtime has the required Notion settings.
+5. Only then decide whether to save immediately, ask a follow-up, or fall back to screen-only output.
+
+Do not turn Python and `uv` checks into mandatory every-run gates when `entrykit` is already working.
+
+If `entrykit doctor` is available, prefer it as the first fast-path preflight command.
+
+### What to check first
+
+- Can the current assistant run local commands at all?
+- Can `entrykit` run directly from the current environment?
+- If `entrykit` runs, skip redundant Python and `uv` checks and continue to configuration.
+- If `entrykit` does not run, diagnose the tool layer in this order:
+  - Is Python available at the required version?
+  - Is `uv` present when the local environment policy expects it?
+  - If `entrykit` is not globally installed, can it still be run from the checked-out repo?
+
+If the answer to the execution layer is no, stop promising persistence. In that case, produce a JSON or Markdown artifact and clearly say that the current agent can prepare the capture but cannot perform the local Notion write from this environment.
+
+### Configuration checks after tool checks
+
+If the tool layer is usable, then check configuration:
+
+- `~/.frederica/config/.env`
+- or an explicitly provided env file path
+- presence of `NOTION_TOKEN`
+- presence of `NOTION_DATABASE_ID`
+
+If config is missing, say exactly what is missing before asking the user for anything else.
+
+### How to interact when config is missing
+
+When the user wants persistence but Notion config is missing:
+
+1. State that local write capability exists, but Notion config is incomplete.
+2. Prefer telling the user where to place the config locally, such as `~/.frederica/config/.env`.
+3. If the user already has a config file elsewhere, ask for its path so it can be loaded explicitly.
+4. Only if the user wants to provide the values directly in chat, accept pasted `NOTION_TOKEN` and `NOTION_DATABASE_ID`.
+
+Do not ask the user to paste secrets into chat by default when a local-file path would work.
 
 ## Capture Workflow
 
@@ -62,13 +114,24 @@ If the user explicitly invokes `frederica`, treat that as a signal that they lik
    - only keep list formatting when the list itself adds meaning
 16. If capture quality matters, especially when another model produced the first draft, optionally run a second review pass with `entrykit review` so a separate LLM can check metadata guessing, language matching, scope coverage, detail level, and block-budget risk.
 17. If the resolved target is a configured writable backend and local execution is available, execute the save instead of stopping at a prepared payload.
-18. If the user wants the result saved and a local `entrykit` command is available, pass the JSON to `entrykit capture`.
-19. On Windows, especially in PowerShell, do not default to piping non-ASCII JSON directly into `entrykit`. Prefer writing the JSON to a UTF-8 file first and then using `entrykit capture --input <path>`.
-20. When a temporary JSON or transcript file is needed for `entrykit`, put it in the system temp directory rather than `./tmp` under the working repository unless the user explicitly asks otherwise.
-21. If you had to create a repo-local temporary file or directory during capture, remove it before finishing so the worktree does not stay dirty.
-22. If PowerShell piping is unavoidable, explicitly force UTF-8 before running `entrykit`, such as `[Console]::InputEncoding = [System.Text.Encoding]::UTF8`, `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`, `$env:PYTHONUTF8='1'`, and `$env:PYTHONIOENCODING='utf-8'`.
-23. Treat mojibake such as `鎺掓煡浜` or `骞剁‘璁や簡` as an encoding failure rather than a content failure. If it appears, retry with a UTF-8 file-based flow instead of trusting the current terminal pipeline.
-24. If local execution is needed from the repo checkout, prefer `PYTHONPATH=src python3 -m entrykit.cli ...`. If a reusable local install is needed, prefer a virtualenv rather than installing into a system-managed Python. Do not assume a bare `python` command exists, especially on macOS.
+18. Before the first write attempt, run a fast-path local preflight such as `entrykit doctor` when available.
+19. If that fast-path check fails, diagnose the local tool layer before giving up:
+   - confirm command execution
+   - confirm Python
+   - confirm `uv` when expected
+   - then retry `entrykit` via global install or repo-checkout execution
+20. If the doctor or equivalent checks show that local execution is unavailable even after fallback diagnosis, do not claim the note was saved. Return a prepared artifact instead.
+21. If the doctor or equivalent checks show that Notion config is missing, explain the missing config and ask the user whether to:
+   - configure `~/.frederica/config/.env`
+   - provide a path to an existing env file
+   - paste the needed values directly
+22. If the user wants the result saved and a local `entrykit` command is available, pass the JSON to `entrykit capture`.
+23. On Windows, especially in PowerShell, do not default to piping non-ASCII JSON directly into `entrykit`. Prefer writing the JSON to a UTF-8 file first and then using `entrykit capture --input <path>`.
+24. When a temporary JSON or transcript file is needed for `entrykit`, put it in the system temp directory rather than `./tmp` under the working repository unless the user explicitly asks otherwise.
+25. If you had to create a repo-local temporary file or directory during capture, remove it before finishing so the worktree does not stay dirty.
+26. If PowerShell piping is unavoidable, explicitly force UTF-8 before running `entrykit`, such as `[Console]::InputEncoding = [System.Text.Encoding]::UTF8`, `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`, `$env:PYTHONUTF8='1'`, and `$env:PYTHONIOENCODING='utf-8'`.
+27. Treat mojibake such as `鎺掓煡浜` or `骞剁‘璁や簡` as an encoding failure rather than a content failure. If it appears, retry with a UTF-8 file-based flow instead of trusting the current terminal pipeline.
+28. If local execution is needed from the repo checkout, prefer `PYTHONPATH=src python3 -m entrykit.cli ...`. If a reusable local install is needed, prefer a virtualenv rather than installing into a system-managed Python. Do not assume a bare `python` command exists, especially on macOS.
 
 ## Output Rules
 
@@ -115,6 +178,8 @@ If the user explicitly invokes `frederica`, treat that as a signal that they lik
   - create one entry for the dominant topic, or
   - tell the user it should be split into multiple captures
 - If local execution is unavailable, still produce the JSON so the user can save it and run `entrykit capture` later.
+- If local execution is unavailable, do not shift the blame to missing Notion credentials before you have established that the local tool layer is runnable.
+- If local execution is available but Notion config is missing, ask for the local config path first. Only ask the user to paste secrets directly when they explicitly choose that route.
 - If the user wants persistence but does not specify a destination, ask only when the target cannot be resolved from the configured backends.
 - If the requested persistence backend is planned but not yet supported, say that clearly and provide the best intermediate artifact you can produce now.
 - If Windows terminal output shows mojibake, do not keep going with the same command shape. Switch to a UTF-8 file plus `--input`, or explicitly set PowerShell and Python UTF-8 settings before retrying.
