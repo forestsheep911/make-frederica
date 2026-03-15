@@ -9,7 +9,9 @@ from unittest.mock import patch
 
 from entrykit.cli import (
     cmd_capture,
+    cmd_config,
     cmd_doctor,
+    config_view,
     decode_utf8,
     doctor_result,
     format_doctor_result,
@@ -86,13 +88,16 @@ class CliEncodingTests(unittest.TestCase):
                     with patch("shutil.which", return_value=None):
                         result = doctor_result(args)
 
-            self.assertFalse(result["ok"])
+            self.assertTrue(result["ok"])
             checks = result["checks"]
             self.assertFalse(checks["uv"]["ok"])
-            self.assertFalse(checks["env_file"]["ok"])
-            self.assertIn("NOTION_TOKEN", checks["notion_config"]["missing"])
+            self.assertEqual(result["default_output"], "screen")
+            self.assertFalse(checks["targets"]["exists"])
+            backends = checks["backends"]
+            self.assertFalse(backends["notion"]["ok"])
+            self.assertIn("NOTION_TOKEN", backends["notion"]["missing"])
             text = format_doctor_result(result)
-            self.assertIn("Next step:", text)
+            self.assertIn("Default output: screen", text)
 
     def test_cmd_doctor_returns_zero_when_configured(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -113,6 +118,139 @@ class CliEncodingTests(unittest.TestCase):
 
             self.assertEqual(code, 0)
             self.assertIn('"ok": true', stdout.getvalue())
+
+    def test_doctor_requires_ready_default_backend(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            targets_path = home / ".frederica" / "config" / "targets.json"
+            targets_path.parent.mkdir(parents=True, exist_ok=True)
+            targets_path.write_text(
+                """
+                {
+                  "default_output": "local_markdown",
+                  "backends": {
+                    "local_markdown": {
+                      "enabled": true,
+                      "output_dir": "missing/notes"
+                    }
+                  }
+                }
+                """,
+                encoding="utf-8",
+            )
+            args = type("Args", (), {"env_file": None, "json": False})()
+
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    with patch("shutil.which", return_value="/usr/bin/uv"):
+                        result = doctor_result(args)
+
+            self.assertFalse(result["ok"])
+            backends = result["checks"]["backends"]
+            self.assertFalse(backends["local_markdown"]["ok"])
+
+    def test_doctor_accepts_ready_local_markdown_backend(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            output_dir = home / "notes"
+            output_dir.mkdir(parents=True, exist_ok=True)
+            targets_path = home / ".frederica" / "config" / "targets.json"
+            targets_path.parent.mkdir(parents=True, exist_ok=True)
+            targets_path.write_text(
+                json.dumps(
+                    {
+                        "default_output": "local_markdown",
+                        "backends": {
+                            "local_markdown": {
+                                "enabled": True,
+                                "output_dir": str(output_dir),
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            args = type("Args", (), {"env_file": None, "json": False})()
+
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    with patch("shutil.which", return_value="/usr/bin/uv"):
+                        result = doctor_result(args)
+
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["default_output"], "local_markdown")
+            backends = result["checks"]["backends"]
+            self.assertTrue(backends["local_markdown"]["ok"])
+
+    def test_config_show_returns_targets_and_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            args = type("Args", (), {"config_command": "show", "json": True})()
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    with patch("shutil.which", return_value="/usr/bin/uv"):
+                        with patch("sys.stdout", new=io.StringIO()) as stdout:
+                            code = cmd_config(args)
+
+            self.assertEqual(code, 0)
+            self.assertIn('"default_output": "screen"', stdout.getvalue())
+
+    def test_config_set_default_writes_targets_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            args = type("Args", (), {"config_command": "set-default", "output": "notion"})()
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    code = cmd_config(args)
+
+            self.assertEqual(code, 0)
+            payload = json.loads((home / ".frederica" / "config" / "targets.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["default_output"], "notion")
+
+    def test_config_set_obsidian_updates_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            args = type(
+                "Args",
+                (),
+                {
+                    "config_command": "set-obsidian",
+                    "vault_path": str(home / "vault"),
+                    "folder": "Frederica",
+                    "enable": True,
+                    "disable": False,
+                },
+            )()
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    code = cmd_config(args)
+
+            self.assertEqual(code, 0)
+            payload = json.loads((home / ".frederica" / "config" / "targets.json").read_text(encoding="utf-8"))
+            self.assertTrue(payload["backends"]["obsidian"]["enabled"])
+            self.assertEqual(payload["backends"]["obsidian"]["folder"], "Frederica")
+
+    def test_config_set_notion_secret_writes_env(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            args = type(
+                "Args",
+                (),
+                {
+                    "config_command": "set-notion-secret",
+                    "token": "secret-token",
+                    "database_id": "db-123",
+                    "env_file": None,
+                },
+            )()
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    code = cmd_config(args)
+
+            self.assertEqual(code, 0)
+            env_text = (home / ".frederica" / "config" / ".env").read_text(encoding="utf-8")
+            self.assertIn("NOTION_TOKEN='secret-token'", env_text)
+            self.assertIn("NOTION_DATABASE_ID='db-123'", env_text)
 
 
 if __name__ == "__main__":

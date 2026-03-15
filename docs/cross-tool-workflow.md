@@ -24,7 +24,7 @@ entrykit capture --input examples/coding-session.json
 
 If another assistant can consume the same skill files, use `frederica` directly there as well. The durable contract is still the same `KnowledgeEntry` JSON.
 
-When the user explicitly invokes `frederica`, the assistant should treat persistence as the default path if exactly one writable backend is already configured.
+When the user explicitly invokes `frederica`, the assistant should resolve the target backend from the user's explicit request first and otherwise fall back to `default_output` in `~/.frederica/config/targets.json`.
 
 Ask a follow-up only when the target is genuinely ambiguous, for example:
 
@@ -32,9 +32,9 @@ Ask a follow-up only when the target is genuinely ambiguous, for example:
 - write the result to Notion
 - prepare a local artifact for another backend such as Markdown or a future Obsidian flow
 
-If the user says "save", "archive", or another clearly persistent intent and Notion is the only configured writable backend, the assistant should perform the actual write instead of stopping at a prepared payload.
+If the user says "save", "archive", or another clearly persistent intent and the resolved backend is writable, the assistant should perform the actual write instead of stopping at a prepared payload.
 
-Before the write attempt, it should check the local tool layer first, ideally with `entrykit doctor`. If the tool layer is available but Notion config is missing, it should ask for the config path or guide the user to `~/.frederica/config/.env` before asking them to paste secrets into chat.
+Before the write attempt, it should check the local tool layer first, ideally with `entrykit doctor`. If the tool layer is available but backend config is missing, it should guide the user to the relevant local config path first. For sensitive values such as Notion secrets, the assistant may offer direct paste only as a less-safe fallback and should say so explicitly.
 
 This keeps `frederica` distinct from ordinary summarization while still making cloud persistence the default behavior when the environment is already configured.
 

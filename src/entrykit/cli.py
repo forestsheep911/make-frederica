@@ -7,7 +7,14 @@ import shutil
 import sys
 from pathlib import Path
 
-from entrykit.config import Settings, default_env_path, frederica_home
+from entrykit.config import (
+    Settings,
+    TargetSettings,
+    default_env_path,
+    expand_config_path,
+    frederica_home,
+    write_notion_env,
+)
 from entrykit.linting import format_lint_result, lint_entry, result_as_json
 from entrykit.models import KnowledgeEntry
 from entrykit.notion import (
@@ -139,6 +146,65 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print the doctor result as JSON.",
     )
+
+    config = subparsers.add_parser(
+        "config",
+        help="Show or modify frederica runtime configuration under ~/.frederica/config.",
+    )
+    config_subparsers = config.add_subparsers(dest="config_command", required=True)
+
+    config_show = config_subparsers.add_parser(
+        "show",
+        help="Print the current frederica config and backend status.",
+    )
+    config_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the config view as JSON.",
+    )
+
+    config_set_default = config_subparsers.add_parser(
+        "set-default",
+        help="Set default_output in ~/.frederica/config/targets.json.",
+    )
+    config_set_default.add_argument(
+        "output",
+        choices=["screen", "notion", "obsidian", "local_markdown"],
+        help="New default output target.",
+    )
+
+    config_set_notion = config_subparsers.add_parser(
+        "set-notion",
+        help="Update notion backend settings in targets.json.",
+    )
+    config_set_notion.add_argument("--env-file", type=str, help="Env file path for notion credentials.")
+    config_set_notion.add_argument("--enable", action="store_true", help="Enable notion as a configured backend.")
+    config_set_notion.add_argument("--disable", action="store_true", help="Disable notion as a configured backend.")
+
+    config_set_notion_secret = config_subparsers.add_parser(
+        "set-notion-secret",
+        help="Write notion secrets into the selected env file.",
+    )
+    config_set_notion_secret.add_argument("--token", help="NOTION_TOKEN value.")
+    config_set_notion_secret.add_argument("--database-id", help="NOTION_DATABASE_ID value.")
+    config_set_notion_secret.add_argument("--env-file", type=str, help="Explicit env file path.")
+
+    config_set_obsidian = config_subparsers.add_parser(
+        "set-obsidian",
+        help="Update obsidian backend settings in targets.json.",
+    )
+    config_set_obsidian.add_argument("--vault-path", help="Obsidian vault path.")
+    config_set_obsidian.add_argument("--folder", help="Folder inside the vault.")
+    config_set_obsidian.add_argument("--enable", action="store_true", help="Enable obsidian as a configured backend.")
+    config_set_obsidian.add_argument("--disable", action="store_true", help="Disable obsidian as a configured backend.")
+
+    config_set_markdown = config_subparsers.add_parser(
+        "set-local-markdown",
+        help="Update local_markdown backend settings in targets.json.",
+    )
+    config_set_markdown.add_argument("--output-dir", help="Filesystem output directory for markdown notes.")
+    config_set_markdown.add_argument("--enable", action="store_true", help="Enable local_markdown as a configured backend.")
+    config_set_markdown.add_argument("--disable", action="store_true", help="Disable local_markdown as a configured backend.")
 
     render_prompt = subparsers.add_parser(
         "render-prompt",
@@ -303,28 +369,49 @@ def cmd_inspect_notion(args: argparse.Namespace) -> int:
 
 
 def doctor_result(args: argparse.Namespace) -> dict[str, object]:
-    env_path = args.env_file or default_env_path()
     python_version = ".".join(str(part) for part in sys.version_info[:3])
     python_ok = sys.version_info >= MIN_PYTHON
     uv_path = shutil.which("uv")
-    env_exists = env_path.exists()
+    targets = TargetSettings.load()
+
+    notion_env_path = args.env_file or targets.notion.env_file or default_env_path()
+    env_exists = notion_env_path.exists()
 
     missing_env: list[str] = []
-    settings_ok = True
+    notion_ready = False
     try:
-        Settings.load(args.env_file)
+        Settings.load(notion_env_path)
+        notion_ready = True
     except ValueError as exc:
-        settings_ok = False
         text = str(exc)
         marker = "Missing required environment variables:"
         if marker in text:
             missing = text.split(marker, 1)[1].strip()
             missing_env = [item.strip() for item in missing.split(",") if item.strip()]
 
+    obsidian_vault = targets.obsidian.vault_path
+    obsidian_vault_exists = Path(obsidian_vault).expanduser().is_dir() if obsidian_vault else False
+    obsidian_ready = targets.obsidian.enabled and bool(obsidian_vault) and obsidian_vault_exists
+
+    markdown_output_dir = targets.local_markdown.output_dir
+    markdown_dir = Path(markdown_output_dir).expanduser() if markdown_output_dir else None
+    markdown_parent_exists = False
+    if markdown_dir is not None:
+        markdown_parent_exists = markdown_dir.is_dir() or markdown_dir.parent.is_dir()
+    markdown_ready = targets.local_markdown.enabled and bool(markdown_output_dir) and markdown_parent_exists
+
+    default_output_ok = {
+        "screen": True,
+        "notion": targets.notion.enabled and notion_ready,
+        "obsidian": obsidian_ready,
+        "local_markdown": markdown_ready,
+    }[targets.default_output]
+
     return {
-        "ok": python_ok and settings_ok,
+        "ok": python_ok and default_output_ok,
+        "runtime_ok": python_ok,
         "frederica_home": str(frederica_home()),
-        "env_file": str(env_path),
+        "default_output": targets.default_output,
         "checks": {
             "python": {
                 "ok": python_ok,
@@ -335,13 +422,36 @@ def doctor_result(args: argparse.Namespace) -> dict[str, object]:
                 "ok": uv_path is not None,
                 "path": uv_path or "",
             },
-            "env_file": {
-                "ok": env_exists,
-                "path": str(env_path),
+            "targets": {
+                "ok": targets.default_output in {"screen", "notion", "obsidian", "local_markdown"},
+                "path": str(targets.source_path),
+                "exists": targets.source_path.exists(),
+                "default_output": targets.default_output,
             },
-            "notion_config": {
-                "ok": settings_ok,
-                "missing": missing_env,
+            "backends": {
+                "screen": {
+                    "ok": True,
+                },
+                "notion": {
+                    "enabled": targets.notion.enabled,
+                    "ok": targets.notion.enabled and notion_ready,
+                    "env_file": str(notion_env_path),
+                    "env_file_exists": env_exists,
+                    "missing": missing_env,
+                },
+                "obsidian": {
+                    "enabled": targets.obsidian.enabled,
+                    "ok": obsidian_ready,
+                    "vault_path": obsidian_vault,
+                    "vault_exists": obsidian_vault_exists,
+                    "folder": targets.obsidian.folder,
+                },
+                "local_markdown": {
+                    "enabled": targets.local_markdown.enabled,
+                    "ok": markdown_ready,
+                    "output_dir": markdown_output_dir,
+                    "path_ready": markdown_parent_exists,
+                },
             },
         },
     }
@@ -352,30 +462,53 @@ def format_doctor_result(result: dict[str, object]) -> str:
     assert isinstance(checks, dict)
     python_check = checks["python"]
     uv_check = checks["uv"]
-    env_check = checks["env_file"]
-    notion_check = checks["notion_config"]
+    targets_check = checks["targets"]
+    backends_check = checks["backends"]
     assert isinstance(python_check, dict)
     assert isinstance(uv_check, dict)
-    assert isinstance(env_check, dict)
+    assert isinstance(targets_check, dict)
+    assert isinstance(backends_check, dict)
+    notion_check = backends_check["notion"]
+    obsidian_check = backends_check["obsidian"]
+    markdown_check = backends_check["local_markdown"]
     assert isinstance(notion_check, dict)
+    assert isinstance(obsidian_check, dict)
+    assert isinstance(markdown_check, dict)
 
     lines = [
         f"Frederica home: {result['frederica_home']}",
-        f"Config file: {result['env_file']}",
+        f"Default output: {result['default_output']}",
         f"[{'ok' if python_check['ok'] else 'missing'}] Python {python_check['version']} (required {python_check['required']})",
         f"[{'ok' if uv_check['ok'] else 'missing'}] uv {uv_check['path'] or 'not found'}",
-        f"[{'ok' if env_check['ok'] else 'missing'}] env file {env_check['path']}",
+        (
+            f"[{'ok' if targets_check['exists'] else 'default'}] targets config {targets_check['path']}"
+            f" (default_output={targets_check['default_output']})"
+        ),
+        (
+            f"[{'ok' if notion_check['ok'] else 'missing'}] notion"
+            f" enabled={notion_check['enabled']} env={notion_check['env_file']}"
+        ),
+        (
+            f"[{'ok' if obsidian_check['ok'] else 'missing'}] obsidian"
+            f" enabled={obsidian_check['enabled']} vault={obsidian_check['vault_path'] or 'not set'}"
+        ),
+        (
+            f"[{'ok' if markdown_check['ok'] else 'missing'}] local_markdown"
+            f" enabled={markdown_check['enabled']} output={markdown_check['output_dir'] or 'not set'}"
+        ),
     ]
     missing = notion_check.get("missing", [])
-    if notion_check["ok"]:
-        lines.append("[ok] Notion config is complete")
-    else:
+    if notion_check["enabled"] and not notion_check["ok"]:
         lines.append(
             "[missing] Notion config missing: " + ", ".join(missing) if missing else "[missing] Notion config is incomplete"
         )
         lines.append(
             "Next step: create or update ~/.frederica/config/.env, or provide an explicit --env-file path before capture."
         )
+    if obsidian_check["enabled"] and not obsidian_check["ok"]:
+        lines.append("Next step: set a valid Obsidian vault_path in ~/.frederica/config/targets.json.")
+    if markdown_check["enabled"] and not markdown_check["ok"]:
+        lines.append("Next step: set a writable local_markdown output_dir in ~/.frederica/config/targets.json.")
     return "\n".join(lines)
 
 
@@ -386,6 +519,86 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     else:
         print(format_doctor_result(result))
     return 0 if result["ok"] else 1
+
+
+def _config_enable_value(args: argparse.Namespace) -> bool | None:
+    if getattr(args, "enable", False) and getattr(args, "disable", False):
+        raise ValueError("Use only one of --enable or --disable.")
+    if getattr(args, "enable", False):
+        return True
+    if getattr(args, "disable", False):
+        return False
+    return None
+
+
+def config_view() -> dict[str, object]:
+    targets = TargetSettings.load()
+    doctor_args = type("Args", (), {"env_file": None, "json": True})()
+    status = doctor_result(doctor_args)
+    return {
+        "frederica_home": str(frederica_home()),
+        "targets": targets.to_dict(),
+        "status": status,
+    }
+
+
+def cmd_config(args: argparse.Namespace) -> int:
+    if args.config_command == "show":
+        payload = config_view()
+        if args.json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+        else:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+
+    targets = TargetSettings.load()
+
+    if args.config_command == "set-default":
+        targets = targets.with_default_output(args.output)
+        targets.save()
+        print(f"Updated default_output to {args.output} in {targets.source_path}")
+        return 0
+
+    if args.config_command == "set-notion":
+        env_file = None
+        if args.env_file:
+            env_file = expand_config_path(args.env_file)
+        enabled = _config_enable_value(args)
+        targets = targets.with_notion(enabled=enabled, env_file=env_file)
+        targets.save()
+        print(f"Updated notion backend in {targets.source_path}")
+        return 0
+
+    if args.config_command == "set-notion-secret":
+        env_file = expand_config_path(args.env_file) if args.env_file else targets.notion.env_file
+        if args.token is None and args.database_id is None:
+            raise ValueError("Provide at least one of --token or --database-id.")
+        write_notion_env(env_file, token=args.token, database_id=args.database_id)
+        print(f"Updated notion secrets in {env_file}")
+        return 0
+
+    if args.config_command == "set-obsidian":
+        enabled = _config_enable_value(args)
+        targets = targets.with_obsidian(
+            enabled=enabled,
+            vault_path=args.vault_path,
+            folder=args.folder,
+        )
+        targets.save()
+        print(f"Updated obsidian backend in {targets.source_path}")
+        return 0
+
+    if args.config_command == "set-local-markdown":
+        enabled = _config_enable_value(args)
+        targets = targets.with_local_markdown(
+            enabled=enabled,
+            output_dir=args.output_dir,
+        )
+        targets.save()
+        print(f"Updated local_markdown backend in {targets.source_path}")
+        return 0
+
+    raise ValueError(f"Unknown config command: {args.config_command}")
 
 
 def cmd_render_prompt(args: argparse.Namespace) -> int:
@@ -449,6 +662,8 @@ def main() -> None:
             raise SystemExit(cmd_inspect_notion(args))
         if args.command == "doctor":
             raise SystemExit(cmd_doctor(args))
+        if args.command == "config":
+            raise SystemExit(cmd_config(args))
         if args.command == "render-prompt":
             raise SystemExit(cmd_render_prompt(args))
         if args.command == "lint":

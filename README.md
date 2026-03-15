@@ -4,14 +4,14 @@
 
 This repo is not the final end-user skill distribution repo. Its job is to help you design, test, package, and validate the skill and the supporting tooling around it.
 
-Today that support layer is mainly `entrykit`, a small CLI for turning AI chat summaries into structured Notion knowledge entries.
+Today that support layer is mainly `entrykit`, a small CLI for turning AI chat summaries into reusable notes and routing them toward the configured output target.
 
 For machine-level use, `frederica` and `entrykit` should live under a dedicated user directory such as `~/.frederica` rather than inside whatever project directory happens to be open. This avoids dirtying unrelated git worktrees for a note-capture tool.
 
 This repo focuses on three things:
 
 - developing the `frederica` skill in a local, testable form
-- maintaining `entrykit` as a supporting CLI for capture, lint, review, and Notion writes
+- maintaining `entrykit` as a supporting CLI for capture, lint, review, and backend-aware writes
 - validating the contracts that will later be exported into a user-facing skills repository
 
 ## What it does
@@ -29,6 +29,7 @@ The `entrykit` CLI currently provides these commands:
 - `entrykit bootstrap-notion`: align a Notion database schema with the fields `entrykit` expects
 - `entrykit inspect-notion`: print the current Notion database properties
 - `entrykit doctor`: check local runtime prerequisites and Notion configuration
+- `entrykit config ...`: show or update frederica config under `~/.frederica/config`
 - `entrykit render-prompt`: print a reusable capture prompt for tools without native integration
 - `entrykit lint`: run schema and heuristic checks on a capture payload
 - `entrykit review`: prepare or validate a second-pass review response for a capture
@@ -61,9 +62,44 @@ See [docs/install-and-build.md](docs/install-and-build.md) for local build detai
 
 ## Configuration
 
-For machine-level use, the default config location is `~/.frederica/config/.env`.
+For machine-level use, the default control-plane config lives under `~/.frederica/config/`.
+
+- `targets.json`: default output target and backend-specific paths
+- `.env`: Notion credentials when the selected backend is `notion`
 
 For local repo development, you can still point commands at a repo-local file with `--env-file .env`.
+
+For sensitive configuration such as `NOTION_TOKEN`, prefer editing the local config file directly. If a setup flow ever offers direct paste into chat, that should be treated as a less safe fallback rather than the recommended path.
+
+The current output targets are:
+
+- `screen`
+- `notion`
+- `obsidian`
+- `local_markdown`
+
+Minimal `targets.json` example:
+
+```json
+{
+  "default_output": "screen",
+  "backends": {
+    "notion": {
+      "enabled": false,
+      "env_file": "~/.frederica/config/.env"
+    },
+    "obsidian": {
+      "enabled": false,
+      "vault_path": "",
+      "folder": ""
+    },
+    "local_markdown": {
+      "enabled": false,
+      "output_dir": ""
+    }
+  }
+}
+```
 
 Create a local `.env` file from the example if you are developing inside this repository:
 
@@ -80,13 +116,25 @@ Do not commit `.env`. Only `.env.example` belongs in the repository.
 
 ## Quick start
 
-Inspect the configured Notion database with the supporting CLI:
+Inspect the configured runtime and backend state with the supporting CLI:
 
 ```bash
 entrykit doctor
 ```
 
-Then inspect the configured Notion database:
+Show the current frederica config:
+
+```bash
+entrykit config show
+```
+
+Update the default output:
+
+```bash
+entrykit config set-default notion
+```
+
+Then inspect the configured Notion database when `notion` is the resolved backend:
 
 ```bash
 entrykit inspect-notion
