@@ -1,6 +1,6 @@
 ---
 name: frederica
-description: "[dev 2026-03-15.2] Summarize an AI chat session into a structured knowledge entry that can be written to a Notion knowledge base with `entrykit capture`. Use when a user wants to archive the key outcomes of a conversation, preserve reusable lessons, or turn a completed chat into a searchable note instead of a one-off summary."
+description: "[dev 2026-03-15.3] Summarize an AI chat session into a structured knowledge entry that can be written to a Notion knowledge base with `entrykit capture`. Use when a user wants to archive the key outcomes of a conversation, preserve reusable lessons, or turn a completed chat into a searchable note instead of a one-off summary."
 ---
 
 # Frederica
@@ -100,14 +100,21 @@ If backend config is missing, say exactly what is missing before asking the user
 When the resolved backend is persistent but config is missing:
 
 1. State that local write capability exists, but the chosen backend config is incomplete.
-2. Offer two explicit setup paths when the missing config is sensitive:
-   - Recommended: edit the local config file such as `~/.frederica/config/.env`
-   - Less safe: paste the values directly into chat for this setup step
+2. Offer two explicit setup paths when the missing config is sensitive. Always present them as numbered options:
+   - 1. Recommended: edit the local config file such as `~/.frederica/config/.env`
+   - 2. Less safe: paste the values directly into chat for this setup step
+3. Explicitly say that replying with just `1` or `2` is acceptable.
 3. When offering direct paste for sensitive config, add a short warning that secrets pasted into chat are less safe than editing the local file directly.
-4. If the user already has a config file or path elsewhere, ask for that path so it can be loaded explicitly.
-5. For non-sensitive config such as vault paths or output directories, direct in-chat setup is acceptable.
+4. If the user chooses the paste-in-chat path for sensitive values, ask for one field at a time rather than requesting all secrets in a single message.
+5. For Notion, ask in this order when values are missing:
+   - 1. `NOTION_TOKEN`
+   - 2. `NOTION_DATABASE_ID`
+6. After each pasted value, confirm which field was captured before asking for the next one.
+7. If the user already has a config file or path elsewhere, ask for that path so it can be loaded explicitly.
+8. For non-sensitive config such as vault paths or output directories, direct in-chat setup is acceptable.
 
 Do not ask the user to paste secrets into chat by default when a local-file path would work. If direct paste is offered, label the local-file path as the recommended option and attach a warning to the paste-in-chat option.
+If you present options, keep the numbering stable and accept a number-only reply.
 
 ## Config Workflow
 
@@ -154,11 +161,14 @@ If local execution is available, prefer the supporting CLI for config work:
 
 1. If the user asks to inspect config, show the current frederica config and backend status.
 2. If the user asks to change non-sensitive config, such as `default_output` or local paths, update the config directly.
-3. If the user asks to change sensitive config such as `NOTION_TOKEN`, offer two setup paths:
-   - Recommended: edit the local env file directly
-   - Less safe: paste the secret into chat for this setup step
-4. If the user chooses direct paste for sensitive config, attach a short safety warning and then write the value into the local env file.
-5. After changing config, confirm what changed and, when useful, suggest `entrykit doctor`.
+3. If the user asks to change sensitive config such as `NOTION_TOKEN`, offer two numbered setup paths:
+   - 1. Recommended: edit the local env file directly
+   - 2. Less safe: paste the secret into chat for this setup step
+4. Explicitly say that replying with just `1` or `2` is acceptable.
+5. If the user chooses direct paste for sensitive config, attach a short safety warning and then collect one field at a time instead of requesting all values together.
+6. When values are captured in chat, confirm each field before asking for the next one.
+7. If an obsolete legacy config such as `~/.config/entrykit/env.sh` still exists, say that frederica no longer uses it and offer to delete it.
+8. After changing config, confirm what changed and, when useful, suggest `entrykit doctor`.
 
 ## Capture Workflow
 
@@ -216,16 +226,18 @@ If local execution is available, prefer the supporting CLI for config work:
    - then retry `entrykit` via global install or repo-checkout execution
 24. If the doctor or equivalent checks show that local execution is unavailable even after fallback diagnosis, do not claim the note was saved. Return a prepared artifact instead.
 25. If the resolved target is `notion` and config is missing, explain the missing config and ask the user whether to:
-   - configure `~/.frederica/config/.env` as the recommended option
-   - provide a path to an existing env file
-   - paste the needed values directly, with a warning that this is less safe than editing the local file
-26. If the user wants the result saved and the resolved target is `notion` with a local `entrykit` command available, pass the JSON to `entrykit capture`.
-27. On Windows, especially in PowerShell, do not default to piping non-ASCII JSON directly into `entrykit`. Prefer writing the JSON to a UTF-8 file first and then using `entrykit capture --input <path>`.
-28. When a temporary JSON or transcript file is needed for `entrykit`, put it in the system temp directory rather than `./tmp` under the working repository unless the user explicitly asks otherwise.
-29. If you had to create a repo-local temporary file or directory during capture, remove it before finishing so the worktree does not stay dirty.
-30. If PowerShell piping is unavoidable, explicitly force UTF-8 before running `entrykit`, such as `[Console]::InputEncoding = [System.Text.Encoding]::UTF8`, `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`, `$env:PYTHONUTF8='1'`, and `$env:PYTHONIOENCODING='utf-8'`.
-31. Treat mojibake such as `鎺掓煡浜` or `骞剁‘璁や簡` as an encoding failure rather than a content failure. If it appears, retry with a UTF-8 file-based flow instead of trusting the current terminal pipeline.
-32. If local execution is needed from the repo checkout, prefer `PYTHONPATH=src python3 -m entrykit.cli ...`. If a reusable local install is needed, prefer a virtualenv rather than installing into a system-managed Python. Do not assume a bare `python` command exists, especially on macOS.
+   - 1. configure `~/.frederica/config/.env` as the recommended option
+   - 2. provide a path to an existing env file
+   - 3. paste the needed values directly, with a warning that this is less safe than editing the local file
+26. Explicitly say that replying with just `1`, `2`, or `3` is acceptable.
+27. If the user chooses direct paste, request the missing values one by one instead of all at once.
+28. If the user wants the result saved and the resolved target is `notion` with a local `entrykit` command available, pass the JSON to `entrykit capture`.
+29. On Windows, especially in PowerShell, do not default to piping non-ASCII JSON directly into `entrykit`. Prefer writing the JSON to a UTF-8 file first and then using `entrykit capture --input <path>`.
+30. When a temporary JSON or transcript file is needed for `entrykit`, put it in the system temp directory rather than `./tmp` under the working repository unless the user explicitly asks otherwise.
+31. If you had to create a repo-local temporary file or directory during capture, remove it before finishing so the worktree does not stay dirty.
+32. If PowerShell piping is unavoidable, explicitly force UTF-8 before running `entrykit`, such as `[Console]::InputEncoding = [System.Text.Encoding]::UTF8`, `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`, `$env:PYTHONUTF8='1'`, and `$env:PYTHONIOENCODING='utf-8'`.
+33. Treat mojibake such as `鎺掓煡浜` or `骞剁‘璁や簡` as an encoding failure rather than a content failure. If it appears, retry with a UTF-8 file-based flow instead of trusting the current terminal pipeline.
+34. If local execution is needed from the repo checkout, prefer `PYTHONPATH=src python3 -m entrykit.cli ...`. If a reusable local install is needed, prefer a virtualenv rather than installing into a system-managed Python. Do not assume a bare `python` command exists, especially on macOS.
 
 ## Output Rules
 
@@ -276,9 +288,12 @@ If local execution is available, prefer the supporting CLI for config work:
 - If local execution is unavailable, still produce the JSON so the user can save it and run `entrykit capture` later.
 - If local execution is unavailable, do not shift the blame to missing Notion credentials before you have established that the local tool layer is runnable.
 - If local execution is available but Notion config is missing, ask for the local config path first. Only ask the user to paste secrets directly when they explicitly choose that route.
+- If you offer setup options, number them and accept a number-only reply.
+- If the user chooses to paste sensitive config, collect one field at a time.
 - If the user asked to save but `default_output` is `screen`, do not quietly satisfy the request with a screen-only recap. Ask a short follow-up that moves toward a persistent backend or a setup step.
 - If the user wants persistence but does not specify a destination, ask only when the target cannot be resolved from the configured backends.
 - If the requested persistence backend is planned but not yet supported, say that clearly and provide the best intermediate artifact you can produce now.
+- If obsolete legacy config files such as `~/.config/entrykit/env.sh` still exist, explain that frederica no longer uses them and offer to delete them.
 - If Windows terminal output shows mojibake, do not keep going with the same command shape. Switch to a UTF-8 file plus `--input`, or explicitly set PowerShell and Python UTF-8 settings before retrying.
 - If any repo-local `tmp/` or other temporary capture directory was created during the workflow, remove it before finishing unless the user explicitly asked to keep it.
 - If a second review pass is available, treat it as advisory quality control rather than a hard blocker. The user may still choose to save the note.

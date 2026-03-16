@@ -13,6 +13,7 @@ from entrykit.config import (
     default_env_path,
     expand_config_path,
     frederica_home,
+    legacy_env_path,
     write_notion_env,
 )
 from entrykit.linting import format_lint_result, lint_entry, result_as_json
@@ -206,6 +207,16 @@ def build_parser() -> argparse.ArgumentParser:
     config_set_markdown.add_argument("--enable", action="store_true", help="Enable local_markdown as a configured backend.")
     config_set_markdown.add_argument("--disable", action="store_true", help="Disable local_markdown as a configured backend.")
 
+    config_cleanup_legacy = config_subparsers.add_parser(
+        "cleanup-legacy",
+        help="Remove obsolete legacy entrykit config files that frederica no longer uses.",
+    )
+    config_cleanup_legacy.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print which obsolete files would be removed without deleting them.",
+    )
+
     render_prompt = subparsers.add_parser(
         "render-prompt",
         help="Render a reusable capture prompt for tools without native skill integration.",
@@ -376,6 +387,8 @@ def doctor_result(args: argparse.Namespace) -> dict[str, object]:
 
     notion_env_path = args.env_file or targets.notion.env_file or default_env_path()
     env_exists = notion_env_path.exists()
+    legacy_path = legacy_env_path()
+    legacy_exists = legacy_path.exists()
 
     missing_env: list[str] = []
     notion_ready = False
@@ -428,6 +441,11 @@ def doctor_result(args: argparse.Namespace) -> dict[str, object]:
                 "exists": targets.source_path.exists(),
                 "default_output": targets.default_output,
             },
+            "legacy": {
+                "path": str(legacy_path),
+                "exists": legacy_exists,
+                "obsolete": True,
+            },
             "backends": {
                 "screen": {
                     "ok": True,
@@ -463,10 +481,12 @@ def format_doctor_result(result: dict[str, object]) -> str:
     python_check = checks["python"]
     uv_check = checks["uv"]
     targets_check = checks["targets"]
+    legacy_check = checks["legacy"]
     backends_check = checks["backends"]
     assert isinstance(python_check, dict)
     assert isinstance(uv_check, dict)
     assert isinstance(targets_check, dict)
+    assert isinstance(legacy_check, dict)
     assert isinstance(backends_check, dict)
     notion_check = backends_check["notion"]
     obsidian_check = backends_check["obsidian"]
@@ -483,6 +503,11 @@ def format_doctor_result(result: dict[str, object]) -> str:
         (
             f"[{'ok' if targets_check['exists'] else 'default'}] targets config {targets_check['path']}"
             f" (default_output={targets_check['default_output']})"
+        ),
+        (
+            f"[{'obsolete' if legacy_check['exists'] else 'ok'}] legacy config "
+            f"{legacy_check['path']}"
+            + (" (unused by current frederica)" if legacy_check["exists"] else " not present")
         ),
         (
             f"[{'ok' if notion_check['ok'] else 'missing'}] notion"
@@ -504,6 +529,10 @@ def format_doctor_result(result: dict[str, object]) -> str:
         )
         lines.append(
             "Next step: create or update ~/.frederica/config/.env, or provide an explicit --env-file path before capture."
+        )
+    if legacy_check["exists"]:
+        lines.append(
+            "Next step: remove the obsolete legacy config with `entrykit config cleanup-legacy` if you no longer need it."
         )
     if obsidian_check["enabled"] and not obsidian_check["ok"]:
         lines.append("Next step: set a valid Obsidian vault_path in ~/.frederica/config/targets.json.")
@@ -538,6 +567,11 @@ def config_view() -> dict[str, object]:
     return {
         "frederica_home": str(frederica_home()),
         "targets": targets.to_dict(),
+        "legacy": {
+            "path": str(legacy_env_path()),
+            "exists": legacy_env_path().exists(),
+            "obsolete": True,
+        },
         "status": status,
     }
 
@@ -596,6 +630,18 @@ def cmd_config(args: argparse.Namespace) -> int:
         )
         targets.save()
         print(f"Updated local_markdown backend in {targets.source_path}")
+        return 0
+
+    if args.config_command == "cleanup-legacy":
+        legacy_path = legacy_env_path()
+        if not legacy_path.exists():
+            print(f"No obsolete legacy config found at {legacy_path}")
+            return 0
+        if args.dry_run:
+            print(f"Would remove obsolete legacy config: {legacy_path}")
+            return 0
+        legacy_path.unlink()
+        print(f"Removed obsolete legacy config: {legacy_path}")
         return 0
 
     raise ValueError(f"Unknown config command: {args.config_command}")

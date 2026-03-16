@@ -6,7 +6,14 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from entrykit.config import Settings, TargetSettings, default_env_path, default_targets_path, frederica_home
+from entrykit.config import (
+    Settings,
+    TargetSettings,
+    default_env_path,
+    default_targets_path,
+    frederica_home,
+    legacy_env_path,
+)
 
 
 class ConfigTests(unittest.TestCase):
@@ -34,7 +41,7 @@ class ConfigTests(unittest.TestCase):
             self.assertEqual(settings.notion_token, "test-token")
             self.assertEqual(settings.notion_database_id, "test-db")
 
-    def test_settings_load_falls_back_to_legacy_env_when_default_missing(self) -> None:
+    def test_settings_load_does_not_fall_back_to_legacy_env_when_default_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             home = Path(tmpdir)
             legacy_path = home / ".config" / "entrykit" / "env.sh"
@@ -46,10 +53,8 @@ class ConfigTests(unittest.TestCase):
 
             with patch.dict(os.environ, {}, clear=True):
                 with patch("pathlib.Path.home", return_value=home):
-                    settings = Settings.load()
-
-            self.assertEqual(settings.notion_token, "legacy-token")
-            self.assertEqual(settings.notion_database_id, "legacy-db")
+                    with self.assertRaisesRegex(ValueError, "Missing required environment variables"):
+                        Settings.load()
 
     def test_target_settings_defaults_to_screen(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -105,6 +110,16 @@ class ConfigTests(unittest.TestCase):
             self.assertEqual(settings.obsidian.folder, "Frederica")
             self.assertTrue(settings.local_markdown.enabled)
             self.assertEqual(settings.local_markdown.output_dir, "~/notes")
+
+    def test_legacy_env_path_points_to_old_entrykit_location(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            with patch.dict(os.environ, {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    self.assertEqual(
+                        legacy_env_path(),
+                        home / ".config" / "entrykit" / "env.sh",
+                    )
 
 
 if __name__ == "__main__":

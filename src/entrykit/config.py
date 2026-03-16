@@ -254,8 +254,6 @@ class Settings:
         if env_path is None:
             env_path = default_env_path()
         load_dotenv(env_path)
-        if env_path == default_env_path():
-            load_dotenv(legacy_env_path())
 
         token = os.getenv("NOTION_TOKEN", "").strip()
         database_id = os.getenv("NOTION_DATABASE_ID", "").strip()
