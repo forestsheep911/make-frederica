@@ -25,7 +25,7 @@ Main parts of the repo:
 
 The `entrykit` CLI currently provides these commands:
 
-- `entrykit capture`: validate a capture payload and write it to Notion
+- `entrykit capture`: validate a capture payload and route it to the resolved output target
 - `entrykit bootstrap-notion`: align a Notion database schema with the fields `entrykit` expects
 - `entrykit inspect-notion`: print the current Notion database properties
 - `entrykit doctor`: check local runtime prerequisites and Notion configuration
@@ -33,6 +33,8 @@ The `entrykit` CLI currently provides these commands:
 - `entrykit render-prompt`: print a reusable capture prompt for tools without native integration
 - `entrykit lint`: run schema and heuristic checks on a capture payload
 - `entrykit review`: prepare or validate a second-pass review response for a capture
+- `entrykit check-evals`: validate a skill eval file and report missing scenario coverage
+- `entrykit check-scenarios`: run simulated local-environment scenarios against entrykit
 
 ## Install
 
@@ -75,8 +77,11 @@ The current output targets are:
 
 - `screen`
 - `notion`
-- `obsidian`
 - `local_markdown`
+
+Planned but not yet writable through `entrykit capture`:
+
+- `obsidian`
 
 Minimal `targets.json` example:
 
@@ -134,6 +139,14 @@ Update the default output:
 entrykit config set-default notion
 ```
 
+For first-time setup, the currently writable persistent targets are `notion` and `local_markdown`. Do not offer `obsidian` as a ready save target yet; its config shape exists, but its capture writer is still pending.
+
+Enable local markdown output:
+
+```bash
+entrykit config set-local-markdown --enable --output-dir ~/notes/frederica
+```
+
 Then inspect the configured Notion database when `notion` is the resolved backend:
 
 ```bash
@@ -152,6 +165,12 @@ Validate a capture file without writing:
 entrykit capture --input examples/coding-session.json --dry-run
 ```
 
+Write a capture file to local markdown explicitly:
+
+```bash
+entrykit capture --input examples/coding-session.json --output local_markdown
+```
+
 Run lint checks:
 
 ```bash
@@ -162,6 +181,18 @@ Prepare a review prompt:
 
 ```bash
 entrykit review --input examples/coding-session.json --conversation conversation.txt
+```
+
+Validate the frederica eval suite:
+
+```bash
+entrykit check-evals --input skills/frederica/evals/evals.json
+```
+
+Run the frederica environment scenario suite:
+
+```bash
+entrykit check-scenarios --input skills/frederica/evals/scenarios.json
 ```
 
 ## Development

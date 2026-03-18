@@ -16,7 +16,9 @@ from entrykit.config import (
     legacy_env_path,
     write_notion_env,
 )
+from entrykit.evals import load_eval_suite, result_as_text, validate_eval_suite
 from entrykit.linting import format_lint_result, lint_entry, result_as_json
+from entrykit.local_markdown import build_output_path, render_markdown_entry, write_markdown_entry
 from entrykit.models import KnowledgeEntry
 from entrykit.notion import (
     NotionClient,
@@ -36,6 +38,7 @@ from entrykit.reviewing import (
     render_review_prompt,
     review_result_as_json,
 )
+from entrykit.scenarios import load_scenario_suite, run_scenario_suite, scenario_result_as_text
 
 
 MIN_PYTHON = (3, 10)
@@ -72,7 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     capture = subparsers.add_parser(
         "capture",
-        help="Create a Notion knowledge entry from structured JSON.",
+        help="Validate a capture payload and route it to the resolved output target.",
     )
     capture.add_argument(
         "--input",
@@ -82,8 +85,12 @@ def build_parser() -> argparse.ArgumentParser:
     capture.add_argument(
         "--env-file",
         type=Path,
-        default=Path(".env"),
-        help="Path to a .env file. Defaults to ./.env.",
+        help="Path to a .env file when the resolved backend is notion.",
+    )
+    capture.add_argument(
+        "--output",
+        choices=["screen", "notion", "obsidian", "local_markdown"],
+        help="Explicit output target for this run. Overrides default_output.",
     )
     capture.add_argument(
         "--status",
@@ -93,7 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
     capture.add_argument(
         "--dry-run",
         action="store_true",
-        help="Validate input and print the derived Notion payload without writing.",
+        help="Validate input and print the derived output payload without writing.",
     )
     capture.add_argument(
         "--conversation",
@@ -281,6 +288,38 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print validated review output as normalized JSON.",
     )
+
+    check_evals = subparsers.add_parser(
+        "check-evals",
+        help="Validate a skill eval file and report coverage gaps.",
+    )
+    check_evals.add_argument(
+        "--input",
+        type=Path,
+        required=True,
+        help="Path to an evals.json file.",
+    )
+    check_evals.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the eval validation result as JSON.",
+    )
+
+    check_scenarios = subparsers.add_parser(
+        "check-scenarios",
+        help="Run a suite of simulated local-environment scenarios against entrykit.",
+    )
+    check_scenarios.add_argument(
+        "--input",
+        type=Path,
+        required=True,
+        help="Path to a scenarios.json file.",
+    )
+    check_scenarios.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the scenario results as JSON.",
+    )
     return parser
 
 
@@ -294,6 +333,8 @@ def cmd_capture(args: argparse.Namespace) -> int:
     raw = read_input(args.input)
     entry = KnowledgeEntry.from_json(raw)
     block_count = validate_block_limit(entry.body_markdown)
+    targets = TargetSettings.load()
+    output = args.output or targets.default_output
     if args.strict_lint:
         conversation = None
         if args.conversation:
@@ -302,31 +343,78 @@ def cmd_capture(args: argparse.Namespace) -> int:
         if not result.ok:
             print(format_lint_result(result), file=sys.stderr)
             return 1
-    if args.dry_run:
+    if output == "screen":
         payload = {
-            "properties": build_properties(entry, args.status),
-            "children": markdown_to_blocks(entry.body_markdown),
+            "target": output,
+            "entry": entry.to_dict(),
             "block_count": block_count,
             "block_limit_warning": block_count >= BLOCK_WARNING_THRESHOLD,
         }
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
+    if args.dry_run:
+        if output == "notion":
+            payload = {
+                "target": output,
+                "properties": build_properties(entry, args.status),
+                "children": markdown_to_blocks(entry.body_markdown),
+                "block_count": block_count,
+                "block_limit_warning": block_count >= BLOCK_WARNING_THRESHOLD,
+            }
+        elif output == "local_markdown":
+            markdown_dir = Path(targets.local_markdown.output_dir).expanduser()
+            payload = {
+                "target": output,
+                "output_path": str(build_output_path(entry, markdown_dir)),
+                "content": render_markdown_entry(entry),
+                "block_count": block_count,
+                "block_limit_warning": block_count >= BLOCK_WARNING_THRESHOLD,
+            }
+        else:
+            raise ValueError(f"Output target `{output}` is not implemented for capture yet.")
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
 
-    settings = Settings.load(args.env_file)
-    client = NotionClient(settings.notion_token)
-    response = client.create_page(settings.notion_database_id, entry, args.status)
-    print(
-        json.dumps(
-            {
-                "id": response.get("id"),
-                "url": response.get("url"),
-                "title": entry.title,
-            },
-            indent=2,
-            ensure_ascii=False,
+    if output == "notion":
+        env_path = args.env_file or targets.notion.env_file or default_env_path()
+        settings = Settings.load(env_path)
+        client = NotionClient(settings.notion_token)
+        response = client.create_page(settings.notion_database_id, entry, args.status)
+        print(
+            json.dumps(
+                {
+                    "target": output,
+                    "id": response.get("id"),
+                    "url": response.get("url"),
+                    "title": entry.title,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
         )
-    )
-    return 0
+        return 0
+
+    if output == "local_markdown":
+        output_dir = targets.local_markdown.output_dir
+        if not targets.local_markdown.enabled:
+            raise ValueError("Output target `local_markdown` is disabled in ~/.frederica/config/targets.json.")
+        if not output_dir:
+            raise ValueError("Output target `local_markdown` requires a configured output_dir.")
+        path = write_markdown_entry(entry, Path(output_dir).expanduser())
+        print(
+            json.dumps(
+                {
+                    "target": output,
+                    "path": str(path),
+                    "title": entry.title,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return 0
+
+    raise ValueError(f"Output target `{output}` is not implemented for capture yet.")
 
 
 def cmd_bootstrap_notion(args: argparse.Namespace) -> int:
@@ -695,6 +783,26 @@ def cmd_review(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_check_evals(args: argparse.Namespace) -> int:
+    suite = load_eval_suite(args.input)
+    result = validate_eval_suite(suite)
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print(result_as_text(result))
+    return 0 if result["ok"] else 1
+
+
+def cmd_check_scenarios(args: argparse.Namespace) -> int:
+    suite = load_scenario_suite(args.input)
+    result = run_scenario_suite(suite, repo_root=Path.cwd())
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print(scenario_result_as_text(result))
+    return 0 if result["ok"] else 1
+
+
 def main() -> None:
     configure_stdio()
     parser = build_parser()
@@ -716,6 +824,10 @@ def main() -> None:
             raise SystemExit(cmd_lint(args))
         if args.command == "review":
             raise SystemExit(cmd_review(args))
+        if args.command == "check-evals":
+            raise SystemExit(cmd_check_evals(args))
+        if args.command == "check-scenarios":
+            raise SystemExit(cmd_check_scenarios(args))
         raise SystemExit(f"Unknown command: {args.command}")
     except (ValueError, FileNotFoundError, NotionError) as exc:
         print(str(exc), file=sys.stderr)

@@ -18,7 +18,9 @@ If the user explicitly asks to view or change frederica configuration, enter a c
 - Do not assume local `entrykit` access is available. Check for it before promising persistence.
 - Treat backend writes as dependent on a successful local preflight, not just on the user's intent.
 - Treat `~/.frederica/config/targets.json` as the control-plane config for `default_output` and backend-specific settings.
-- Treat `screen`, `notion`, `obsidian`, and `local_markdown` as the valid output targets.
+- Treat `screen`, `notion`, `obsidian`, and `local_markdown` as the known output target names in config.
+- Treat only `screen`, `notion`, and `local_markdown` as currently executable capture targets.
+- Treat `obsidian` as planned configuration state, not as a writable last-mile target yet.
 - Treat a user's explicit backend request as higher priority than `default_output` for the current turn.
 - Assume Notion writes require the environment expected by `entrykit`, including `NOTION_TOKEN` and `NOTION_DATABASE_ID`.
 - On Windows terminals, prefer UTF-8 file-based handoff into `entrykit` instead of piping non-ASCII JSON through the shell.
@@ -66,7 +68,7 @@ If the answer to the execution layer is no, stop promising persistence. In that 
 
 If the tool layer is usable, resolve the output target in this order:
 
-1. If the user explicitly names `screen`, `notion`, `obsidian`, or `local_markdown`, use that target for this turn.
+1. If the user explicitly names `screen`, `notion`, `obsidian`, or `local_markdown`, resolve that as the user's intended target for this turn.
 2. Otherwise read `default_output` from `~/.frederica/config/targets.json`.
 3. If `targets.json` does not exist, treat the default as `screen`.
 4. If the resolved target is `screen` and the user did not express persistence intent, return the capture in chat.
@@ -83,15 +85,16 @@ After resolving the target, check only the relevant backend configuration:
   - or an explicitly provided env file path
   - presence of `NOTION_TOKEN`
   - presence of `NOTION_DATABASE_ID`
+- `local_markdown`
+  - `~/.frederica/config/targets.json`
+  - `backends.local_markdown.enabled`
+  - `backends.local_markdown.output_dir`
 - `obsidian`
   - `~/.frederica/config/targets.json`
   - `backends.obsidian.enabled`
   - `backends.obsidian.vault_path`
   - optional `backends.obsidian.folder`
-- `local_markdown`
-  - `~/.frederica/config/targets.json`
-  - `backends.local_markdown.enabled`
-  - `backends.local_markdown.output_dir`
+  - but treat this as setup-only until the writer exists
 
 If backend config is missing, say exactly what is missing before asking the user for anything else.
 
@@ -104,14 +107,23 @@ When the resolved backend is persistent but config is missing:
    - 1. Recommended: edit the local config file such as `~/.frederica/config/.env`
    - 2. Less safe: paste the values directly into chat for this setup step
 3. Explicitly say that replying with just `1` or `2` is acceptable.
-3. When offering direct paste for sensitive config, add a short warning that secrets pasted into chat are less safe than editing the local file directly.
-4. If the user chooses the paste-in-chat path for sensitive values, ask for one field at a time rather than requesting all secrets in a single message.
-5. For Notion, ask in this order when values are missing:
+4. When offering direct paste for sensitive config, add a short warning that secrets pasted into chat are less safe than editing the local file directly.
+5. If the user chooses the paste-in-chat path for sensitive values, ask for one field at a time rather than requesting all secrets in a single message.
+6. For Notion, ask in this order when values are missing:
    - 1. `NOTION_TOKEN`
    - 2. `NOTION_DATABASE_ID`
-6. After each pasted value, confirm which field was captured before asking for the next one.
-7. If the user already has a config file or path elsewhere, ask for that path so it can be loaded explicitly.
-8. For non-sensitive config such as vault paths or output directories, direct in-chat setup is acceptable.
+7. After each pasted value, confirm which field was captured before asking for the next one.
+8. If the user already has a config file or path elsewhere, ask for that path so it can be loaded explicitly.
+9. For non-sensitive config such as vault paths or output directories, direct in-chat setup is acceptable.
+
+When the user is choosing a backend for first-time setup:
+
+1. Offer only currently writable persistent targets by default:
+   - 1. `notion`
+   - 2. `local_markdown`
+2. Mention `screen` only as a non-persistent fallback, not as a save target.
+3. Mention `obsidian` only if the user explicitly asks for it or already has it configured.
+4. If `obsidian` comes up, say clearly that its config can be prepared now but `entrykit capture` cannot write to it yet.
 
 Do not ask the user to paste secrets into chat by default when a local-file path would work. If direct paste is offered, label the local-file path as the recommended option and attach a warning to the paste-in-chat option.
 If you present options, keep the numbering stable and accept a number-only reply.
@@ -185,15 +197,18 @@ If local execution is available, prefer the supporting CLI for config work:
    - the user asks to save but both the explicit request and `default_output` are absent or invalid
 7. If the follow-up is needed because persistence intent conflicts with `screen`, offer backend setup or backend choice instead of immediately producing a screen-only recap.
 8. If the user names `notion`, use the full capture-and-write workflow.
-9. If the user names `obsidian` or `local_markdown` and the last-mile writer is not yet implemented, still prepare the `KnowledgeEntry` JSON or Markdown output and state that the final write path is not yet implemented.
-10. If the current tool exposes runtime metadata through a command such as `/status`, inspect it before capturing and reuse any explicitly visible metadata such as model name, exact model identifier, or session id.
-11. Default to the full current conversation as the capture scope. Narrow the scope only when the user explicitly asks to capture a subsection, a recent segment, or a single topic.
-12. Extract the durable outcomes of the conversation:
+9. If the user names `local_markdown`, use the full capture-and-write workflow.
+10. If the user names `obsidian`, say clearly that the writer is not implemented yet. Offer either:
+   - configure the obsidian path now for later
+   - or save this turn to `local_markdown` or `notion`
+11. If the current tool exposes runtime metadata through a command such as `/status`, inspect it before capturing and reuse any explicitly visible metadata such as model name, exact model identifier, or session id.
+12. Default to the full current conversation as the capture scope. Narrow the scope only when the user explicitly asks to capture a subsection, a recent segment, or a single topic.
+13. Extract the durable outcomes of the conversation:
    - What happened
    - What mattered
    - What is reusable later
-13. Build a `KnowledgeEntry` JSON object that matches [`references/schema.md`](references/schema.md).
-14. Keep the database-facing fields concise and searchable:
+14. Build a `KnowledgeEntry` JSON object that matches [`references/schema.md`](references/schema.md).
+15. Keep the database-facing fields concise and searchable:
    - `title`
    - `source_tool`
    - `tool_version`
@@ -205,39 +220,40 @@ If local execution is available, prefer the supporting CLI for config work:
    - `tags`
    - `reusability_score`
    - `summary`
-15. Write the long-form content into `body_markdown`. Adapt the structure to the material instead of forcing fixed headings.
-16. Treat the Notion body as block-limited content rather than unlimited Markdown:
+16. Write the long-form content into `body_markdown`. Adapt the structure to the material instead of forcing fixed headings.
+17. Treat the Notion body as block-limited content rather than unlimited Markdown:
    - stay comfortably under 100 rendered Notion blocks
    - prefer in-block newlines over splitting every short sentence into a separate paragraph
    - use blank lines only when a real structural boundary is needed
-17. If the draft appears likely to exceed the block budget, compress structure before saving:
+18. If the draft appears likely to exceed the block budget, compress structure before saving:
    - merge adjacent paragraphs that belong to the same idea
    - avoid one-line paragraphs when they can be grouped
    - only keep list formatting when the list itself adds meaning
-18. If capture quality matters, especially when another model produced the first draft, optionally run a second review pass with `entrykit review` so a separate LLM can check metadata guessing, language matching, scope coverage, detail level, and block-budget risk.
-19. If the resolved target is `screen` and the user did not ask to persist, return the capture in chat and do not treat that as a failed save.
-20. If the resolved target is a configured writable backend and local execution is available, execute the save instead of stopping at a prepared payload.
-21. After the first successful save to a persistent backend, if `default_output` is still `screen`, ask a short follow-up about whether that backend should become the future default. Do not change `default_output` without the user's confirmation.
-22. Before the first write attempt, run a fast-path local preflight such as `entrykit doctor` when available.
-23. If that fast-path check fails, diagnose the local tool layer before giving up:
+19. If capture quality matters, especially when another model produced the first draft, optionally run a second review pass with `entrykit review` so a separate LLM can check metadata guessing, language matching, scope coverage, detail level, and block-budget risk.
+20. If the resolved target is `screen` and the user did not ask to persist, return the capture in chat and do not treat that as a failed save.
+21. If the resolved target is a configured writable backend and local execution is available, execute the save instead of stopping at a prepared payload.
+22. After the first successful save to a persistent backend, if `default_output` is still `screen`, ask a short follow-up about whether that backend should become the future default. Do not change `default_output` without the user's confirmation.
+23. Before the first write attempt, run a fast-path local preflight such as `entrykit doctor` when available.
+24. If that fast-path check fails, diagnose the local tool layer before giving up:
    - confirm command execution
    - confirm Python
    - confirm `uv` when expected
    - then retry `entrykit` via global install or repo-checkout execution
-24. If the doctor or equivalent checks show that local execution is unavailable even after fallback diagnosis, do not claim the note was saved. Return a prepared artifact instead.
-25. If the resolved target is `notion` and config is missing, explain the missing config and ask the user whether to:
+25. If the doctor or equivalent checks show that local execution is unavailable even after fallback diagnosis, do not claim the note was saved. Return a prepared artifact instead.
+26. If the resolved target is `notion` and config is missing, explain the missing config and ask the user whether to:
    - 1. configure `~/.frederica/config/.env` as the recommended option
    - 2. provide a path to an existing env file
    - 3. paste the needed values directly, with a warning that this is less safe than editing the local file
-26. Explicitly say that replying with just `1`, `2`, or `3` is acceptable.
-27. If the user chooses direct paste, request the missing values one by one instead of all at once.
-28. If the user wants the result saved and the resolved target is `notion` with a local `entrykit` command available, pass the JSON to `entrykit capture`.
-29. On Windows, especially in PowerShell, do not default to piping non-ASCII JSON directly into `entrykit`. Prefer writing the JSON to a UTF-8 file first and then using `entrykit capture --input <path>`.
-30. When a temporary JSON or transcript file is needed for `entrykit`, put it in the system temp directory rather than `./tmp` under the working repository unless the user explicitly asks otherwise.
-31. If you had to create a repo-local temporary file or directory during capture, remove it before finishing so the worktree does not stay dirty.
-32. If PowerShell piping is unavoidable, explicitly force UTF-8 before running `entrykit`, such as `[Console]::InputEncoding = [System.Text.Encoding]::UTF8`, `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`, `$env:PYTHONUTF8='1'`, and `$env:PYTHONIOENCODING='utf-8'`.
-33. Treat mojibake such as `鎺掓煡浜` or `骞剁‘璁や簡` as an encoding failure rather than a content failure. If it appears, retry with a UTF-8 file-based flow instead of trusting the current terminal pipeline.
-34. If local execution is needed from the repo checkout, prefer `PYTHONPATH=src python3 -m entrykit.cli ...`. If a reusable local install is needed, prefer a virtualenv rather than installing into a system-managed Python. Do not assume a bare `python` command exists, especially on macOS.
+27. Explicitly say that replying with just `1`, `2`, or `3` is acceptable.
+28. If the user chooses direct paste, request the missing values one by one instead of all at once.
+29. If the user wants the result saved and the resolved target is `notion` with a local `entrykit` command available, pass the JSON to `entrykit capture`.
+30. If the user wants the result saved and the resolved target is `local_markdown` with a local `entrykit` command available, pass the JSON to `entrykit capture`.
+31. On Windows, especially in PowerShell, do not default to piping non-ASCII JSON directly into `entrykit`. Prefer writing the JSON to a UTF-8 file first and then using `entrykit capture --input <path>`.
+32. When a temporary JSON or transcript file is needed for `entrykit`, put it in the system temp directory rather than `./tmp` under the working repository unless the user explicitly asks otherwise.
+33. If you had to create a repo-local temporary file or directory during capture, remove it before finishing so the worktree does not stay dirty.
+34. If PowerShell piping is unavoidable, explicitly force UTF-8 before running `entrykit`, such as `[Console]::InputEncoding = [System.Text.Encoding]::UTF8`, `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`, `$env:PYTHONUTF8='1'`, and `$env:PYTHONIOENCODING='utf-8'`.
+35. Treat mojibake such as `鎺掓煡浜` or `骞剁‘璁や簡` as an encoding failure rather than a content failure. If it appears, retry with a UTF-8 file-based flow instead of trusting the current terminal pipeline.
+36. If local execution is needed from the repo checkout, prefer `PYTHONPATH=src python3 -m entrykit.cli ...`. If a reusable local install is needed, prefer a virtualenv rather than installing into a system-managed Python. Do not assume a bare `python` command exists, especially on macOS.
 
 ## Output Rules
 
@@ -246,6 +262,8 @@ If local execution is available, prefer the supporting CLI for config work:
 - If the user expressed clear persistence intent, do not let `screen` remain the final target unless the user explicitly accepts screen-only output after the follow-up.
 - If the user expressed clear persistence intent and the target backend is unambiguous, perform the save instead of only preparing a capture payload.
 - If a save just succeeded to a persistent backend and `default_output` is still `screen`, ask whether that backend should become the default for future plain “总结” requests. Do not switch it automatically.
+- If the user is choosing a first persistent backend, prefer offering `notion` and `local_markdown` before mentioning `obsidian`.
+- If the user explicitly asks for `obsidian`, be clear that config can be prepared now but direct capture writing is not implemented yet.
 - Prefer a short, concrete `title`.
 - Use `tool_version` for the visible tool or client version when it is explicitly exposed, such as `v0.111.0`. Leave it empty instead of guessing.
 - Use `model` for the visible model name exactly as the tool shows it, such as `gpt-5.4`, `Claude Sonnet 4.5`, or `Gemini 2.5 Pro`. Leave it empty instead of guessing.

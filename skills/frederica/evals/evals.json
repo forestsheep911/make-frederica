@@ -5,55 +5,92 @@
       "id": 1,
       "prompt": "把这次关于 entrykit 和 Notion 落库约束的对话整理成可复用知识条目，并直接准备好保存到 Notion。重点保留 100 block 限制、block 内换行策略、lint 和 capture 前置校验这几个结论。",
       "expected_output": "Skill should choose the capture-and-write workflow, preserve the durable decisions, and keep the body suitable for Notion import.",
-      "files": []
+      "files": [],
+      "covers": ["notion_capture"]
     },
     {
       "id": 2,
       "prompt": "Summarize this English debugging session into a reusable note, but keep it ready for the same KnowledgeEntry JSON flow. The original chat is entirely in English and includes an explicit model string from /status.",
       "expected_output": "Skill should preserve English as the dominant language, copy explicit metadata rather than guessing, and produce a capture-ready structure.",
-      "files": []
+      "files": [],
+      "covers": ["language_and_metadata"]
     },
     {
       "id": 3,
       "prompt": "请事无巨细地归纳这次长对话并准备存档，不过注意 Notion 不能超过 100 个 block。内容里有很多一行一条的小观察，请你在不丢信息的前提下尽量压缩 block 数，并优先考虑 block 内换行。",
       "expected_output": "Skill should match the requested detail level while still compressing the body structure to stay under the Notion block budget.",
-      "files": []
+      "files": [],
+      "covers": ["block_budget"]
     },
     {
       "id": 4,
       "prompt": "用 frederica 把这次对话直接保存到 Notion。当前环境里 `entrykit doctor` 可以直接通过，但我不想每次都重复检查全局 python 和全局 uv；只有 entrykit 不可用时，再去诊断基础环境。",
       "expected_output": "Skill should take the fast-path preflight, treat runnable entrykit as sufficient to proceed to configuration checks, and avoid redundant Python or uv checks unless entrykit availability fails.",
-      "files": []
+      "files": [],
+      "covers": ["fast_path_preflight"]
     },
     {
       "id": 5,
       "prompt": "用 frederica 总结这次对话。当前 `~/.frederica/config/targets.json` 的 `default_output` 是 `obsidian`，但我这次明确说要存到 notion。请按 notion 处理，不要沿用默认输出目标。",
       "expected_output": "Skill should treat the explicit backend request as a per-turn override, resolve the target to notion instead of the configured default_output, and run only the notion-specific preflight for that turn.",
-      "files": []
+      "files": [],
+      "covers": ["explicit_backend_override"]
     },
     {
       "id": 6,
       "prompt": "使用 frederica 保存刚才的项目概要。当前没有 `targets.json`，因此 `default_output` 实际上是 `screen`，而且还没有配置任何持久化后端。",
       "expected_output": "Skill should not satisfy explicit save intent with a silent screen-only fallback. It should ask a short follow-up that guides the user toward configuring or choosing a persistent backend, with local file editing recommended for sensitive Notion config.",
-      "files": []
+      "files": [],
+      "covers": ["save_intent_with_screen_default"]
     },
     {
       "id": 7,
       "prompt": "这次已经成功用 frederica 保存到 Notion，而且当前 `default_output` 还是 `screen`。接下来模型应如何处理默认输出？",
       "expected_output": "Skill should ask a short follow-up offering to set notion as the future default for plain summary requests, but it must not switch default_output automatically without the user's confirmation.",
-      "files": []
+      "files": [],
+      "covers": ["post_save_default_followup"]
     },
     {
       "id": 8,
       "prompt": "用 frederica 改配置，把默认输出改成 local_markdown，并把本地 markdown 输出目录改成 `D:/notes/frederica`。",
       "expected_output": "Skill should enter the configuration workflow instead of the capture workflow, treat the request as a scoped frederica config update, and update default_output plus local_markdown settings directly.",
-      "files": []
+      "files": [],
+      "covers": ["config_local_markdown"]
     },
     {
       "id": 9,
       "prompt": "用 frederica 更新 notion token。你可以改配置文件，也可以让我直接贴给你。",
       "expected_output": "Skill should treat this as a configuration request, recommend editing the local env file as the safer option, and only accept direct pasted secrets if the user explicitly chooses that less-safe path.",
-      "files": []
+      "files": [],
+      "covers": ["config_notion_secret"]
+    },
+    {
+      "id": 10,
+      "prompt": "第一次用 frederica 保存这次对话，我还没有配过任何输出方式。请直接引导我设置一个可用的持久化输出。",
+      "expected_output": "Skill should not present obsidian as a ready save target. It should guide first-time setup by offering notion and local_markdown as the currently writable persistent targets, with screen framed only as a non-persistent fallback.",
+      "files": [],
+      "covers": ["first_time_backend_setup"]
+    },
+    {
+      "id": 11,
+      "prompt": "用 frederica 保存这次总结。当前 default_output 是 local_markdown，但我这次明确说只要 screen 里给我看，不要落盘。",
+      "expected_output": "Skill should treat the explicit per-turn request as higher priority than default_output, resolve the target to screen for this turn, and avoid writing to local_markdown.",
+      "files": [],
+      "covers": ["explicit_screen_override"]
+    },
+    {
+      "id": 12,
+      "prompt": "刚刚已经用 frederica 成功保存到 local_markdown，但现在 default_output 还是 screen。接下来应该怎么处理？",
+      "expected_output": "Skill should ask a short follow-up about whether local_markdown should become the new default for future plain summary requests, but it must not change default_output automatically.",
+      "files": [],
+      "covers": ["post_save_default_followup_local_markdown"]
+    },
+    {
+      "id": 13,
+      "prompt": "我想用 frederica 保存到 obsidian。若还不能直接写入，也请把该怎么配置和这次可替代的保存方式说清楚。",
+      "expected_output": "Skill should say clearly that direct obsidian writing is not implemented yet, offer to prepare obsidian config now, and suggest notion or local_markdown as the writable alternatives for this turn.",
+      "files": [],
+      "covers": ["obsidian_planned_backend"]
     }
   ]
 }

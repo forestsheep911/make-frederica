@@ -1,0 +1,147 @@
+{
+  "suite_name": "frederica-environment",
+  "scenarios": [
+    {
+      "id": "doctor-default-screen-no-config",
+      "argv": ["doctor", "--json"],
+      "home_files": {},
+      "env": {},
+      "fake_bins": [],
+      "path_mode": "fake_only",
+      "expect": {
+        "exit_code": 0,
+        "json_fields": {
+          "ok": true,
+          "default_output": "screen",
+          "checks.backends.notion.ok": false,
+          "checks.backends.local_markdown.ok": false
+        }
+      }
+    },
+    {
+      "id": "doctor-local-markdown-ready",
+      "argv": ["doctor", "--json"],
+      "home_files": {
+        ".frederica/config/targets.json": "{\n  \"default_output\": \"local_markdown\",\n  \"backends\": {\n    \"local_markdown\": {\n      \"enabled\": true,\n      \"output_dir\": \"{home}/notes\"\n    }\n  }\n}\n"
+      },
+      "env": {},
+      "fake_bins": [
+        {
+          "name": "uv",
+          "content": "@echo off\r\nexit /b 0\r\n"
+        }
+      ],
+      "path_mode": "fake_only",
+      "expect": {
+        "exit_code": 0,
+        "json_fields": {
+          "default_output": "local_markdown",
+          "checks.backends.local_markdown.ok": true
+        }
+      }
+    },
+    {
+      "id": "capture-local-markdown-from-default",
+      "argv": ["capture", "--input", "{input}"],
+      "home_files": {
+        ".frederica/config/targets.json": "{\n  \"default_output\": \"local_markdown\",\n  \"backends\": {\n    \"local_markdown\": {\n      \"enabled\": true,\n      \"output_dir\": \"{home}/notes\"\n    }\n  }\n}\n"
+      },
+      "env": {},
+      "fake_bins": [],
+      "path_mode": "fake_only",
+      "input_json": {
+        "title": "Scenario Local Markdown",
+        "source_tool": "codex",
+        "tool_version": "",
+        "model": "",
+        "thinking_mode": "unknown",
+        "project": "make-frederica",
+        "session_date": "2026-03-17",
+        "session_id": "",
+        "tags": ["scenario"],
+        "reusability_score": 80,
+        "summary": "Scenario summary",
+        "body_markdown": "# Overview\n\nScenario body."
+      },
+      "expect": {
+        "exit_code": 0,
+        "json_fields": {
+          "target": "local_markdown"
+        },
+        "path_exists_from_json_field": "path"
+      }
+    },
+    {
+      "id": "capture-explicit-screen-overrides-default-local-markdown",
+      "argv": ["capture", "--input", "{input}", "--output", "screen"],
+      "home_files": {
+        ".frederica/config/targets.json": "{\n  \"default_output\": \"local_markdown\",\n  \"backends\": {\n    \"local_markdown\": {\n      \"enabled\": true,\n      \"output_dir\": \"{home}/notes\"\n    }\n  }\n}\n"
+      },
+      "env": {},
+      "fake_bins": [],
+      "path_mode": "fake_only",
+      "input_json": {
+        "title": "Scenario Screen Override",
+        "source_tool": "codex",
+        "tool_version": "",
+        "model": "",
+        "thinking_mode": "unknown",
+        "project": "make-frederica",
+        "session_date": "2026-03-17",
+        "session_id": "",
+        "tags": ["scenario"],
+        "reusability_score": 80,
+        "summary": "Scenario summary",
+        "body_markdown": "# Overview\n\nScenario body."
+      },
+      "expect": {
+        "exit_code": 0,
+        "json_fields": {
+          "target": "screen",
+          "entry.title": "Scenario Screen Override"
+        },
+        "absent_paths": [
+          "notes"
+        ]
+      }
+    },
+    {
+      "id": "doctor-notion-default-missing-env",
+      "argv": ["doctor", "--json"],
+      "home_files": {
+        ".frederica/config/targets.json": "{\n  \"default_output\": \"notion\",\n  \"backends\": {\n    \"notion\": {\n      \"enabled\": true,\n      \"env_file\": \"{home}/.frederica/config/.env\"\n    }\n  }\n}\n"
+      },
+      "env": {},
+      "fake_bins": [
+        {
+          "name": "uv",
+          "content": "@echo off\r\nexit /b 0\r\n"
+        }
+      ],
+      "path_mode": "fake_only",
+      "expect": {
+        "exit_code": 1,
+        "json_fields": {
+          "ok": false,
+          "default_output": "notion",
+          "checks.backends.notion.ok": false
+        }
+      }
+    },
+    {
+      "id": "check-frederica-evals-pass",
+      "argv": ["check-evals", "--input", "skills/frederica/evals/evals.json", "--json"],
+      "home_files": {},
+      "env": {},
+      "fake_bins": [],
+      "path_mode": "fake_only",
+      "expect": {
+        "exit_code": 0,
+        "json_fields": {
+          "ok": true,
+          "skill_name": "frederica"
+        }
+      }
+    }
+  ]
+}

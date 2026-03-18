@@ -71,8 +71,9 @@ class CliEncodingTests(unittest.TestCase):
                     "strict_lint": False,
                     "conversation": None,
                     "dry_run": False,
+                    "output": None,
                     "status": "Captured",
-                    "env_file": Path(".env"),
+                    "env_file": None,
                 },
             )()
 
@@ -251,6 +252,336 @@ class CliEncodingTests(unittest.TestCase):
             env_text = (home / ".frederica" / "config" / ".env").read_text(encoding="utf-8")
             self.assertIn("NOTION_TOKEN='secret-token'", env_text)
             self.assertIn("NOTION_DATABASE_ID='db-123'", env_text)
+
+    def test_cmd_capture_writes_local_markdown_from_default_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            output_dir = home / "notes"
+            targets_path = home / ".frederica" / "config" / "targets.json"
+            targets_path.parent.mkdir(parents=True, exist_ok=True)
+            targets_path.write_text(
+                json.dumps(
+                    {
+                        "default_output": "local_markdown",
+                        "backends": {
+                            "local_markdown": {
+                                "enabled": True,
+                                "output_dir": str(output_dir),
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            input_path = home / "captured.json"
+            input_path.write_text(
+                json.dumps(
+                    {
+                        "title": "Capture coding-session architecture decisions",
+                        "source_tool": "codex",
+                        "tool_version": "",
+                        "model": "",
+                        "thinking_mode": "unknown",
+                        "project": "entrykit",
+                        "session_date": "2026-03-08T16:20:00+08:00",
+                        "session_id": "",
+                        "tags": ["notion", "capture"],
+                        "reusability_score": 84,
+                        "summary": "Short summary",
+                        "body_markdown": "# Overview\n\nBody text.",
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "input": input_path,
+                    "strict_lint": False,
+                    "conversation": None,
+                    "dry_run": False,
+                    "output": None,
+                    "status": "Captured",
+                    "env_file": None,
+                },
+            )()
+
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    with patch("sys.stdout", new=io.StringIO()) as stdout:
+                        code = cmd_capture(args)
+
+            self.assertEqual(code, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["target"], "local_markdown")
+            written = Path(payload["path"])
+            self.assertTrue(written.exists())
+            text = written.read_text(encoding="utf-8")
+            self.assertIn('title: "Capture coding-session architecture decisions"', text)
+            self.assertIn("# Overview\n\nBody text.", text)
+
+    def test_cmd_capture_local_markdown_dry_run_prints_rendered_content(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            output_dir = home / "notes"
+            targets_path = home / ".frederica" / "config" / "targets.json"
+            targets_path.parent.mkdir(parents=True, exist_ok=True)
+            targets_path.write_text(
+                json.dumps(
+                    {
+                        "default_output": "screen",
+                        "backends": {
+                            "local_markdown": {
+                                "enabled": True,
+                                "output_dir": str(output_dir),
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            input_path = home / "captured.json"
+            input_path.write_text(
+                json.dumps(
+                    {
+                        "title": "Dry Run Note",
+                        "source_tool": "codex",
+                        "tool_version": "",
+                        "model": "",
+                        "thinking_mode": "unknown",
+                        "project": "",
+                        "session_date": "2026-03-08",
+                        "session_id": "",
+                        "tags": [],
+                        "reusability_score": 50,
+                        "summary": "Short summary",
+                        "body_markdown": "Body text.",
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "input": input_path,
+                    "strict_lint": False,
+                    "conversation": None,
+                    "dry_run": True,
+                    "output": "local_markdown",
+                    "status": "Captured",
+                    "env_file": None,
+                },
+            )()
+
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    with patch("sys.stdout", new=io.StringIO()) as stdout:
+                        code = cmd_capture(args)
+
+            self.assertEqual(code, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["target"], "local_markdown")
+            self.assertIn("---", payload["content"])
+            self.assertIn("Body text.", payload["content"])
+            self.assertFalse(output_dir.exists())
+
+    def test_cmd_capture_local_markdown_requires_output_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            targets_path = home / ".frederica" / "config" / "targets.json"
+            targets_path.parent.mkdir(parents=True, exist_ok=True)
+            targets_path.write_text(
+                json.dumps(
+                    {
+                        "default_output": "local_markdown",
+                        "backends": {
+                            "local_markdown": {
+                                "enabled": True,
+                                "output_dir": "",
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            input_path = home / "captured.json"
+            input_path.write_text(
+                json.dumps(
+                    {
+                        "title": "Missing Output Dir",
+                        "source_tool": "codex",
+                        "tool_version": "",
+                        "model": "",
+                        "thinking_mode": "unknown",
+                        "project": "",
+                        "session_date": "2026-03-08",
+                        "session_id": "",
+                        "tags": [],
+                        "reusability_score": 50,
+                        "summary": "Short summary",
+                        "body_markdown": "Body text.",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "input": input_path,
+                    "strict_lint": False,
+                    "conversation": None,
+                    "dry_run": False,
+                    "output": None,
+                    "status": "Captured",
+                    "env_file": None,
+                },
+            )()
+
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    with self.assertRaisesRegex(ValueError, "requires a configured output_dir"):
+                        cmd_capture(args)
+
+    def test_cmd_capture_explicit_notion_overrides_default_local_markdown(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            output_dir = home / "notes"
+            targets_path = home / ".frederica" / "config" / "targets.json"
+            env_path = home / ".frederica" / "config" / ".env"
+            targets_path.parent.mkdir(parents=True, exist_ok=True)
+            targets_path.write_text(
+                json.dumps(
+                    {
+                        "default_output": "local_markdown",
+                        "backends": {
+                            "notion": {"enabled": True, "env_file": str(env_path)},
+                            "local_markdown": {
+                                "enabled": True,
+                                "output_dir": str(output_dir),
+                            },
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            env_path.write_text(
+                "NOTION_TOKEN=test-token\nNOTION_DATABASE_ID=test-db\n",
+                encoding="utf-8",
+            )
+            input_path = home / "captured.json"
+            input_path.write_text(
+                json.dumps(
+                    {
+                        "title": "Override To Notion",
+                        "source_tool": "codex",
+                        "tool_version": "",
+                        "model": "",
+                        "thinking_mode": "unknown",
+                        "project": "",
+                        "session_date": "2026-03-08",
+                        "session_id": "",
+                        "tags": [],
+                        "reusability_score": 50,
+                        "summary": "Short summary",
+                        "body_markdown": "Body text.",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "input": input_path,
+                    "strict_lint": False,
+                    "conversation": None,
+                    "dry_run": True,
+                    "output": "notion",
+                    "status": "Captured",
+                    "env_file": None,
+                },
+            )()
+
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    with patch("sys.stdout", new=io.StringIO()) as stdout:
+                        code = cmd_capture(args)
+
+            self.assertEqual(code, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["target"], "notion")
+            self.assertIn("properties", payload)
+            self.assertFalse(output_dir.exists())
+
+    def test_cmd_capture_explicit_screen_overrides_default_local_markdown(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            output_dir = home / "notes"
+            targets_path = home / ".frederica" / "config" / "targets.json"
+            targets_path.parent.mkdir(parents=True, exist_ok=True)
+            targets_path.write_text(
+                json.dumps(
+                    {
+                        "default_output": "local_markdown",
+                        "backends": {
+                            "local_markdown": {
+                                "enabled": True,
+                                "output_dir": str(output_dir),
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            input_path = home / "captured.json"
+            input_path.write_text(
+                json.dumps(
+                    {
+                        "title": "Override To Screen",
+                        "source_tool": "codex",
+                        "tool_version": "",
+                        "model": "",
+                        "thinking_mode": "unknown",
+                        "project": "",
+                        "session_date": "2026-03-08",
+                        "session_id": "",
+                        "tags": [],
+                        "reusability_score": 50,
+                        "summary": "Short summary",
+                        "body_markdown": "Body text.",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "input": input_path,
+                    "strict_lint": False,
+                    "conversation": None,
+                    "dry_run": False,
+                    "output": "screen",
+                    "status": "Captured",
+                    "env_file": None,
+                },
+            )()
+
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    with patch("sys.stdout", new=io.StringIO()) as stdout:
+                        code = cmd_capture(args)
+
+            self.assertEqual(code, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["target"], "screen")
+            self.assertEqual(payload["entry"]["title"], "Override To Screen")
+            self.assertFalse(output_dir.exists())
 
 
 if __name__ == "__main__":
