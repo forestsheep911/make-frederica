@@ -1,6 +1,6 @@
 ---
 name: frederica
-description: "[dev 2026-03-15.3] Summarize an AI chat session into a structured knowledge entry that can be written to a Notion knowledge base with `entrykit capture`. Use when a user wants to archive the key outcomes of a conversation, preserve reusable lessons, or turn a completed chat into a searchable note instead of a one-off summary."
+description: "[dev 2026-03-21.1] Summarize an AI chat session into a structured knowledge entry that can be written to a Notion knowledge base with `entrykit capture`. Use when a user wants to archive the key outcomes of a conversation, preserve reusable lessons, or turn a completed chat into a searchable note instead of a one-off summary."
 ---
 
 # Frederica
@@ -23,6 +23,7 @@ If the user explicitly asks to view or change frederica configuration, enter a c
 - Treat `obsidian` as planned configuration state, not as a writable last-mile target yet.
 - Treat a user's explicit backend request as higher priority than `default_output` for the current turn.
 - Assume Notion writes require the environment expected by `entrykit`, including `NOTION_TOKEN` and `NOTION_DATABASE_ID`.
+- Do not assume `entrykit doctor` and `entrykit capture` load environment variables identically. Treat `doctor` success as advisory until an actual write path has either succeeded or a same-process env load has been verified.
 - On Windows terminals, prefer UTF-8 file-based handoff into `entrykit` instead of piping non-ASCII JSON through the shell.
 - When working from the repository checkout instead of a global install, prefer `PYTHONPATH=src python3 -m entrykit.cli ...`.
 - For intermediate files, prefer the OS temporary directory over creating `./tmp` inside the current repository. If a repo-local temp file is unavoidable, delete it before finishing.
@@ -246,14 +247,16 @@ If local execution is available, prefer the supporting CLI for config work:
    - 3. paste the needed values directly, with a warning that this is less safe than editing the local file
 27. Explicitly say that replying with just `1`, `2`, or `3` is acceptable.
 28. If the user chooses direct paste, request the missing values one by one instead of all at once.
-29. If the user wants the result saved and the resolved target is `notion` with a local `entrykit` command available, pass the JSON to `entrykit capture`.
-30. If the user wants the result saved and the resolved target is `local_markdown` with a local `entrykit` command available, pass the JSON to `entrykit capture`.
-31. On Windows, especially in PowerShell, do not default to piping non-ASCII JSON directly into `entrykit`. Prefer writing the JSON to a UTF-8 file first and then using `entrykit capture --input <path>`.
-32. When a temporary JSON or transcript file is needed for `entrykit`, put it in the system temp directory rather than `./tmp` under the working repository unless the user explicitly asks otherwise.
-33. If you had to create a repo-local temporary file or directory during capture, remove it before finishing so the worktree does not stay dirty.
-34. If PowerShell piping is unavoidable, explicitly force UTF-8 before running `entrykit`, such as `[Console]::InputEncoding = [System.Text.Encoding]::UTF8`, `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`, `$env:PYTHONUTF8='1'`, and `$env:PYTHONIOENCODING='utf-8'`.
-35. Treat mojibake such as `鎺掓煡浜` or `骞剁‘璁や簡` as an encoding failure rather than a content failure. If it appears, retry with a UTF-8 file-based flow instead of trusting the current terminal pipeline.
-36. If local execution is needed from the repo checkout, prefer `PYTHONPATH=src python3 -m entrykit.cli ...`. If a reusable local install is needed, prefer a virtualenv rather than installing into a system-managed Python. Do not assume a bare `python` command exists, especially on macOS.
+29. If the user wants the result saved and the resolved target is `notion` with a local `entrykit` command available, attempt `entrykit capture`.
+30. If that capture attempt fails with missing environment variables such as `NOTION_TOKEN` or `NOTION_DATABASE_ID`, do not immediately treat the backend as unconfigured. First try a same-process env load from `~/.frederica/config/.env`, or from the resolved backend env file path if one is configured, and then retry `entrykit capture` once.
+31. Only if the retry still reports missing variables should you treat Notion config as incomplete and enter the numbered setup flow.
+32. If the user wants the result saved and the resolved target is `local_markdown` with a local `entrykit` command available, pass the JSON to `entrykit capture`.
+33. On Windows, especially in PowerShell, do not default to piping non-ASCII JSON directly into `entrykit`. Prefer writing the JSON to a UTF-8 file first and then using `entrykit capture --input <path>`.
+34. When a temporary JSON or transcript file is needed for `entrykit`, put it in the system temp directory rather than `./tmp` under the working repository unless the user explicitly asks otherwise.
+35. If you had to create a repo-local temporary file or directory during capture, remove it before finishing so the worktree does not stay dirty.
+36. If PowerShell piping is unavoidable, explicitly force UTF-8 before running `entrykit`, such as `[Console]::InputEncoding = [System.Text.Encoding]::UTF8`, `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`, `$env:PYTHONUTF8='1'`, and `$env:PYTHONIOENCODING='utf-8'`.
+37. Treat mojibake such as `鎺掓煡浜` or `骞剁‘璁や簡` as an encoding failure rather than a content failure. If it appears, retry with a UTF-8 file-based flow instead of trusting the current terminal pipeline.
+38. If local execution is needed from the repo checkout, prefer `PYTHONPATH=src python3 -m entrykit.cli ...`. If a reusable local install is needed, prefer a virtualenv rather than installing into a system-managed Python. Do not assume a bare `python` command exists, especially on macOS.
 
 ## Output Rules
 
