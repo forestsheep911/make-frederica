@@ -148,6 +148,8 @@ entrykit config set-default notion
 
 For first-time setup, the currently writable persistent targets are `notion` and `local_markdown`. Do not offer `obsidian` as a ready save target yet; its config shape exists, but its capture writer is still pending.
 
+If `capture` resolves to `obsidian`, `entrykit` now fails with an explicit message that Obsidian writing is still pending and that the current capture should use `notion` or `local_markdown` instead.
+
 Enable local markdown output:
 
 ```bash

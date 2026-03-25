@@ -81,6 +81,21 @@ def read_text_file(path: Path) -> str:
     return decode_utf8(path.read_bytes(), f"Input file `{path}`")
 
 
+def obsidian_capture_error(targets: TargetSettings) -> ValueError:
+    folder = targets.obsidian.folder or "(root)"
+    if targets.obsidian.enabled:
+        details = (
+            f"Configured vault: {targets.obsidian.vault_path or 'not set'}; "
+            f"folder: {folder}."
+        )
+    else:
+        details = "The obsidian backend is not enabled in ~/.frederica/config/targets.json."
+    return ValueError(
+        "Output target `obsidian` is not implemented for capture yet. "
+        f"{details} Configure the path now if you want, then use `notion` or `local_markdown` for this capture."
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="entrykit")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -380,6 +395,8 @@ def cmd_capture(args: argparse.Namespace) -> int:
                 "block_count": block_count,
                 "block_limit_warning": block_count >= BLOCK_WARNING_THRESHOLD,
             }
+        elif output == "obsidian":
+            raise obsidian_capture_error(targets)
         else:
             raise ValueError(f"Output target `{output}` is not implemented for capture yet.")
         print(json.dumps(payload, indent=2, ensure_ascii=False))
@@ -423,6 +440,9 @@ def cmd_capture(args: argparse.Namespace) -> int:
             )
         )
         return 0
+
+    if output == "obsidian":
+        raise obsidian_capture_error(targets)
 
     raise ValueError(f"Output target `{output}` is not implemented for capture yet.")
 

@@ -622,6 +622,107 @@ class CliEncodingTests(unittest.TestCase):
             self.assertEqual(payload["entry"]["title"], "Override To Screen")
             self.assertFalse(output_dir.exists())
 
+    def test_cmd_capture_obsidian_reports_actionable_message_when_enabled(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            targets_path = home / ".frederica" / "config" / "targets.json"
+            targets_path.parent.mkdir(parents=True, exist_ok=True)
+            targets_path.write_text(
+                json.dumps(
+                    {
+                        "default_output": "obsidian",
+                        "backends": {
+                            "obsidian": {
+                                "enabled": True,
+                                "vault_path": str(home / "vault"),
+                                "folder": "Frederica",
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            input_path = home / "captured.json"
+            input_path.write_text(
+                json.dumps(
+                    {
+                        "title": "Obsidian Pending",
+                        "source_tool": "codex",
+                        "tool_version": "",
+                        "model": "",
+                        "thinking_mode": "unknown",
+                        "project": "",
+                        "session_date": "2026-03-08",
+                        "session_id": "",
+                        "tags": [],
+                        "reusability_score": 50,
+                        "summary": "Short summary",
+                        "body_markdown": "Body text.",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "input": input_path,
+                    "strict_lint": False,
+                    "conversation": None,
+                    "dry_run": False,
+                    "output": None,
+                    "status": "Captured",
+                    "env_file": None,
+                },
+            )()
+
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    with self.assertRaisesRegex(ValueError, "use `notion` or `local_markdown`"):
+                        cmd_capture(args)
+
+    def test_cmd_capture_explicit_obsidian_dry_run_reports_actionable_message(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            input_path = home / "captured.json"
+            input_path.write_text(
+                json.dumps(
+                    {
+                        "title": "Obsidian Dry Run",
+                        "source_tool": "codex",
+                        "tool_version": "",
+                        "model": "",
+                        "thinking_mode": "unknown",
+                        "project": "",
+                        "session_date": "2026-03-08",
+                        "session_id": "",
+                        "tags": [],
+                        "reusability_score": 50,
+                        "summary": "Short summary",
+                        "body_markdown": "Body text.",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "input": input_path,
+                    "strict_lint": False,
+                    "conversation": None,
+                    "dry_run": True,
+                    "output": "obsidian",
+                    "status": "Captured",
+                    "env_file": None,
+                },
+            )()
+
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    with self.assertRaisesRegex(ValueError, "not enabled"):
+                        cmd_capture(args)
+
 
 if __name__ == "__main__":
     unittest.main()
