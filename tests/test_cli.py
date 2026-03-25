@@ -17,6 +17,7 @@ from entrykit.cli import (
     config_view,
     decode_utf8,
     doctor_result,
+    format_config_view,
     format_doctor_result,
     read_input,
     read_text_file,
@@ -234,6 +235,55 @@ class CliEncodingTests(unittest.TestCase):
 
             self.assertEqual(code, 0)
             self.assertIn('"default_output": "screen"', stdout.getvalue())
+
+    def test_format_config_view_returns_human_readable_text(self) -> None:
+        view = {
+            "frederica_home": "/tmp/home/.frederica",
+            "targets": {
+                "default_output": "screen",
+                "backends": {
+                    "notion": {"enabled": False, "env_file": "/tmp/home/.frederica/config/.env"},
+                    "obsidian": {"enabled": True, "vault_path": "/tmp/vault", "folder": "Frederica"},
+                    "local_markdown": {"enabled": True, "output_dir": "/tmp/notes"},
+                },
+            },
+            "legacy": {"path": "/tmp/home/.config/entrykit/env.sh", "exists": False, "obsolete": True},
+            "status": {
+                "frederica_home": "/tmp/home/.frederica",
+                "default_output": "screen",
+                "checks": {
+                    "python": {"ok": True, "version": "3.12.0", "required": ">=3.10"},
+                    "uv": {"ok": False, "path": ""},
+                    "targets": {"exists": False, "default_output": "screen", "path": "/tmp/home/.frederica/config/targets.json"},
+                    "legacy": {"exists": False, "path": "/tmp/home/.config/entrykit/env.sh"},
+                    "backends": {
+                        "notion": {"ok": False, "enabled": False, "env_file": "/tmp/home/.frederica/config/.env", "missing": []},
+                        "obsidian": {"ok": False, "enabled": True, "vault_path": "/tmp/vault"},
+                        "local_markdown": {"ok": True, "enabled": True, "output_dir": "/tmp/notes"},
+                    },
+                },
+            },
+        }
+
+        text = format_config_view(view)
+        self.assertIn("Configured backends:", text)
+        self.assertIn("- obsidian: enabled=True vault=/tmp/vault folder=Frederica", text)
+        self.assertIn("Doctor status:", text)
+
+    def test_config_show_without_json_uses_human_readable_format(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            args = type("Args", (), {"config_command": "show", "json": False})()
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    with patch("shutil.which", return_value="/usr/bin/uv"):
+                        with patch("sys.stdout", new=io.StringIO()) as stdout:
+                            code = cmd_config(args)
+
+            self.assertEqual(code, 0)
+            text = stdout.getvalue()
+            self.assertIn("Configured backends:", text)
+            self.assertIn("Doctor status:", text)
 
     def test_config_set_default_writes_targets_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

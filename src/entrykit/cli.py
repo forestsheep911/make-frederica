@@ -694,13 +694,53 @@ def config_view() -> dict[str, object]:
     }
 
 
+def format_config_view(view: dict[str, object]) -> str:
+    targets = view["targets"]
+    legacy = view["legacy"]
+    status = view["status"]
+    assert isinstance(targets, dict)
+    assert isinstance(legacy, dict)
+    assert isinstance(status, dict)
+    backends = targets.get("backends", {})
+    assert isinstance(backends, dict)
+    notion = backends.get("notion", {})
+    obsidian = backends.get("obsidian", {})
+    local_markdown = backends.get("local_markdown", {})
+    assert isinstance(notion, dict)
+    assert isinstance(obsidian, dict)
+    assert isinstance(local_markdown, dict)
+
+    lines = [
+        f"Frederica home: {view['frederica_home']}",
+        f"Default output: {targets.get('default_output', 'screen')}",
+        "Configured backends:",
+        f"- notion: enabled={notion.get('enabled', False)} env={notion.get('env_file', 'not set')}",
+        (
+            f"- obsidian: enabled={obsidian.get('enabled', False)} "
+            f"vault={obsidian.get('vault_path', '') or 'not set'} folder={obsidian.get('folder', '') or '(root)'}"
+        ),
+        (
+            f"- local_markdown: enabled={local_markdown.get('enabled', False)} "
+            f"output={local_markdown.get('output_dir', '') or 'not set'}"
+        ),
+        (
+            f"Legacy config: {legacy.get('path')} "
+            + ("present" if legacy.get("exists") else "not present")
+        ),
+        "",
+        "Doctor status:",
+        format_doctor_result(status),
+    ]
+    return "\n".join(lines)
+
+
 def cmd_config(args: argparse.Namespace) -> int:
     if args.config_command == "show":
         payload = config_view()
         if args.json:
             print(json.dumps(payload, indent=2, ensure_ascii=False))
         else:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            print(format_config_view(payload))
         return 0
 
     targets = TargetSettings.load()
