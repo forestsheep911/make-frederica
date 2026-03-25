@@ -120,8 +120,7 @@ def build_parser() -> argparse.ArgumentParser:
     bootstrap.add_argument(
         "--env-file",
         type=Path,
-        default=Path(".env"),
-        help="Path to a .env file. Defaults to ./.env.",
+        help="Optional explicit .env path. Defaults to ~/.frederica/config/.env.",
     )
     bootstrap.add_argument(
         "--dry-run",
@@ -136,8 +135,7 @@ def build_parser() -> argparse.ArgumentParser:
     inspect.add_argument(
         "--env-file",
         type=Path,
-        default=Path(".env"),
-        help="Path to a .env file. Defaults to ./.env.",
+        help="Optional explicit .env path. Defaults to ~/.frederica/config/.env.",
     )
 
     doctor = subparsers.add_parser(
@@ -418,7 +416,7 @@ def cmd_capture(args: argparse.Namespace) -> int:
 
 
 def cmd_bootstrap_notion(args: argparse.Namespace) -> int:
-    settings = Settings.load(args.env_file)
+    settings = Settings.load(args.env_file or default_env_path())
     client = NotionClient(settings.notion_token)
     current = client.retrieve_database(settings.notion_database_id)
     patch = build_schema_patch(current.get("properties", {}))
@@ -457,7 +455,7 @@ def cmd_bootstrap_notion(args: argparse.Namespace) -> int:
 
 
 def cmd_inspect_notion(args: argparse.Namespace) -> int:
-    settings = Settings.load(args.env_file)
+    settings = Settings.load(args.env_file or default_env_path())
     client = NotionClient(settings.notion_token)
     response = client.retrieve_database(settings.notion_database_id)
     properties = {

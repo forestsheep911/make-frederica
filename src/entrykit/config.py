@@ -29,8 +29,10 @@ def legacy_env_path() -> Path:
 
 
 def expand_config_path(value: str) -> Path:
-    if value.startswith("~"):
-        return frederica_home().parent / value[2:] if value.startswith("~/") else Path.home() / value[1:]
+    if value == "~":
+        return Path.home()
+    if value.startswith("~/"):
+        return Path.home() / value[2:]
     return Path(value)
 
 

@@ -11,6 +11,7 @@ from entrykit.config import (
     TargetSettings,
     default_env_path,
     default_targets_path,
+    expand_config_path,
     frederica_home,
     legacy_env_path,
 )
@@ -110,6 +111,13 @@ class ConfigTests(unittest.TestCase):
             self.assertEqual(settings.obsidian.folder, "Frederica")
             self.assertTrue(settings.local_markdown.enabled)
             self.assertEqual(settings.local_markdown.output_dir, "~/notes")
+
+    def test_expand_config_path_uses_user_home_for_tilde_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir) / "user-home"
+            with patch.dict(os.environ, {"FREDERICA_HOME": str(Path(tmpdir) / "custom-frederica")}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    self.assertEqual(expand_config_path("~/custom.env"), home / "custom.env")
 
     def test_legacy_env_path_points_to_old_entrykit_location(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

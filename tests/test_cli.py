@@ -8,9 +8,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 from entrykit.cli import (
+    build_parser,
+    cmd_bootstrap_notion,
     cmd_capture,
     cmd_config,
     cmd_doctor,
+    cmd_inspect_notion,
     config_view,
     decode_utf8,
     doctor_result,
@@ -21,6 +24,16 @@ from entrykit.cli import (
 
 
 class CliEncodingTests(unittest.TestCase):
+    def test_bootstrap_notion_parser_uses_optional_env_file(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["bootstrap-notion"])
+        self.assertIsNone(args.env_file)
+
+    def test_inspect_notion_parser_uses_optional_env_file(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["inspect-notion"])
+        self.assertIsNone(args.env_file)
+
     def test_read_text_file_accepts_utf8_bom(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "captured.json"
@@ -119,6 +132,28 @@ class CliEncodingTests(unittest.TestCase):
 
             self.assertEqual(code, 0)
             self.assertIn('"ok": true', stdout.getvalue())
+
+    def test_cmd_bootstrap_notion_uses_default_frederica_env(self) -> None:
+        args = type("Args", (), {"env_file": None, "dry_run": True})()
+        with patch("entrykit.cli.Settings.load") as load_settings:
+            with patch("entrykit.cli.NotionClient") as notion_client:
+                notion_client.return_value.retrieve_database.return_value = {"properties": {}}
+                code = cmd_bootstrap_notion(args)
+
+        self.assertEqual(code, 0)
+        load_settings.assert_called_once_with(Path.home() / ".frederica" / "config" / ".env")
+
+    def test_cmd_inspect_notion_uses_default_frederica_env(self) -> None:
+        args = type("Args", (), {"env_file": None})()
+        fake_settings = type("Settings", (), {"notion_token": "token", "notion_database_id": "db"})()
+        with patch("entrykit.cli.Settings.load", return_value=fake_settings) as load_settings:
+            with patch("entrykit.cli.NotionClient") as notion_client:
+                notion_client.return_value.retrieve_database.return_value = {"properties": {}}
+                with patch("sys.stdout", new=io.StringIO()):
+                    code = cmd_inspect_notion(args)
+
+        self.assertEqual(code, 0)
+        load_settings.assert_called_once_with(Path.home() / ".frederica" / "config" / ".env")
 
     def test_doctor_requires_ready_default_backend(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
