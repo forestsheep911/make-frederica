@@ -36,7 +36,7 @@ class ScenarioTests(unittest.TestCase):
         self.assertEqual(code, 0)
         payload = json.loads(stdout.getvalue())
         self.assertTrue(payload["ok"])
-        self.assertEqual(payload["scenario_count"], 6)
+        self.assertEqual(payload["scenario_count"], 9)
 
     def test_scenario_suite_reports_failure_for_wrong_expectation(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

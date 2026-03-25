@@ -106,6 +106,97 @@
       }
     },
     {
+      "id": "capture-local-markdown-dry-run-missing-output-dir",
+      "argv": ["capture", "--input", "{input}", "--output", "local_markdown", "--dry-run"],
+      "home_files": {
+        ".frederica/config/targets.json": "{\n  \"default_output\": \"screen\",\n  \"backends\": {\n    \"local_markdown\": {\n      \"enabled\": true,\n      \"output_dir\": \"\"\n    }\n  }\n}\n"
+      },
+      "env": {},
+      "fake_bins": [],
+      "path_mode": "fake_only",
+      "input_json": {
+        "title": "Scenario Missing Markdown Dir",
+        "source_tool": "codex",
+        "tool_version": "",
+        "model": "",
+        "thinking_mode": "unknown",
+        "project": "make-frederica",
+        "session_date": "2026-03-17",
+        "session_id": "",
+        "tags": ["scenario"],
+        "reusability_score": 80,
+        "summary": "Scenario summary",
+        "body_markdown": "# Overview\n\nScenario body."
+      },
+      "expect": {
+        "exit_code": 1,
+        "stderr_contains": [
+          "requires a configured output_dir"
+        ]
+      }
+    },
+    {
+      "id": "capture-local-markdown-dry-run-disabled-backend",
+      "argv": ["capture", "--input", "{input}", "--output", "local_markdown", "--dry-run"],
+      "home_files": {
+        ".frederica/config/targets.json": "{\n  \"default_output\": \"screen\",\n  \"backends\": {\n    \"local_markdown\": {\n      \"enabled\": false,\n      \"output_dir\": \"{home}/notes\"\n    }\n  }\n}\n"
+      },
+      "env": {},
+      "fake_bins": [],
+      "path_mode": "fake_only",
+      "input_json": {
+        "title": "Scenario Disabled Markdown Backend",
+        "source_tool": "codex",
+        "tool_version": "",
+        "model": "",
+        "thinking_mode": "unknown",
+        "project": "make-frederica",
+        "session_date": "2026-03-17",
+        "session_id": "",
+        "tags": ["scenario"],
+        "reusability_score": 80,
+        "summary": "Scenario summary",
+        "body_markdown": "# Overview\n\nScenario body."
+      },
+      "expect": {
+        "exit_code": 1,
+        "stderr_contains": [
+          "disabled in ~/.frederica/config/targets.json"
+        ]
+      }
+    },
+    {
+      "id": "capture-obsidian-default-reports-alternative-targets",
+      "argv": ["capture", "--input", "{input}"],
+      "home_files": {
+        ".frederica/config/targets.json": "{\n  \"default_output\": \"obsidian\",\n  \"backends\": {\n    \"obsidian\": {\n      \"enabled\": true,\n      \"vault_path\": \"{home}/vault\",\n      \"folder\": \"Frederica\"\n    }\n  }\n}\n"
+      },
+      "env": {},
+      "fake_bins": [],
+      "path_mode": "fake_only",
+      "input_json": {
+        "title": "Scenario Obsidian Pending",
+        "source_tool": "codex",
+        "tool_version": "",
+        "model": "",
+        "thinking_mode": "unknown",
+        "project": "make-frederica",
+        "session_date": "2026-03-17",
+        "session_id": "",
+        "tags": ["scenario"],
+        "reusability_score": 80,
+        "summary": "Scenario summary",
+        "body_markdown": "# Overview\n\nScenario body."
+      },
+      "expect": {
+        "exit_code": 1,
+        "stderr_contains": [
+          "Output target `obsidian` is not implemented for capture yet.",
+          "use `notion` or `local_markdown`"
+        ]
+      }
+    },
+    {
       "id": "doctor-notion-default-missing-env",
       "argv": ["doctor", "--json"],
       "home_files": {
