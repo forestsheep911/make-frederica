@@ -134,6 +134,8 @@ Inspect the configured runtime and backend state with the supporting CLI:
 entrykit doctor
 ```
 
+`doctor` succeeds when Python is usable and the resolved `default_output` backend is ready. Missing `uv` is still reported, but only as an advisory signal.
+
 Show the current frederica config:
 
 ```bash

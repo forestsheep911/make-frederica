@@ -545,6 +545,7 @@ def doctor_result(args: argparse.Namespace) -> dict[str, object]:
     return {
         "ok": python_ok and default_output_ok,
         "runtime_ok": python_ok,
+        "default_output_ready": default_output_ok,
         "frederica_home": str(frederica_home()),
         "default_output": targets.default_output,
         "checks": {
@@ -556,6 +557,7 @@ def doctor_result(args: argparse.Namespace) -> dict[str, object]:
             "uv": {
                 "ok": uv_path is not None,
                 "path": uv_path or "",
+                "advisory": True,
             },
             "targets": {
                 "ok": targets.default_output in {"screen", "notion", "obsidian", "local_markdown"},
@@ -620,6 +622,7 @@ def format_doctor_result(result: dict[str, object]) -> str:
     lines = [
         f"Frederica home: {result['frederica_home']}",
         f"Default output: {result['default_output']}",
+        f"Default output ready: {result['default_output_ready']}",
         f"[{'ok' if python_check['ok'] else 'missing'}] Python {python_check['version']} (required {python_check['required']})",
         f"[{'ok' if uv_check['ok'] else 'missing'}] uv {uv_check['path'] or 'not found'}",
         (
@@ -660,6 +663,8 @@ def format_doctor_result(result: dict[str, object]) -> str:
         lines.append("Next step: set a valid Obsidian vault_path in ~/.frederica/config/targets.json.")
     if markdown_check["enabled"] and not markdown_check["ok"]:
         lines.append("Next step: set a writable local_markdown output_dir in ~/.frederica/config/targets.json.")
+    if not uv_check["ok"]:
+        lines.append("Note: uv is advisory here. entrykit can still run when Python and the resolved backend are ready.")
     return "\n".join(lines)
 
 

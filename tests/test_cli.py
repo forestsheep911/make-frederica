@@ -109,8 +109,10 @@ class CliEncodingTests(unittest.TestCase):
                         result = doctor_result(args)
 
             self.assertTrue(result["ok"])
+            self.assertTrue(result["default_output_ready"])
             checks = result["checks"]
             self.assertFalse(checks["uv"]["ok"])
+            self.assertTrue(checks["uv"]["advisory"])
             self.assertEqual(result["default_output"], "screen")
             self.assertFalse(checks["targets"]["exists"])
             backends = checks["backends"]
@@ -118,6 +120,8 @@ class CliEncodingTests(unittest.TestCase):
             self.assertIn("NOTION_TOKEN", backends["notion"]["missing"])
             text = format_doctor_result(result)
             self.assertIn("Default output: screen", text)
+            self.assertIn("Default output ready: True", text)
+            self.assertIn("uv is advisory here", text)
 
     def test_cmd_doctor_returns_zero_when_configured(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -188,6 +192,7 @@ class CliEncodingTests(unittest.TestCase):
                         result = doctor_result(args)
 
             self.assertFalse(result["ok"])
+            self.assertFalse(result["default_output_ready"])
             backends = result["checks"]["backends"]
             self.assertFalse(backends["local_markdown"]["ok"])
 
@@ -220,6 +225,7 @@ class CliEncodingTests(unittest.TestCase):
                         result = doctor_result(args)
 
             self.assertTrue(result["ok"])
+            self.assertTrue(result["default_output_ready"])
             self.assertEqual(result["default_output"], "local_markdown")
             backends = result["checks"]["backends"]
             self.assertTrue(backends["local_markdown"]["ok"])
@@ -252,9 +258,10 @@ class CliEncodingTests(unittest.TestCase):
             "status": {
                 "frederica_home": "/tmp/home/.frederica",
                 "default_output": "screen",
+                "default_output_ready": True,
                 "checks": {
                     "python": {"ok": True, "version": "3.12.0", "required": ">=3.10"},
-                    "uv": {"ok": False, "path": ""},
+                    "uv": {"ok": False, "path": "", "advisory": True},
                     "targets": {"exists": False, "default_output": "screen", "path": "/tmp/home/.frederica/config/targets.json"},
                     "legacy": {"exists": False, "path": "/tmp/home/.config/entrykit/env.sh"},
                     "backends": {
