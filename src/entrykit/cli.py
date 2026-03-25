@@ -694,6 +694,28 @@ def config_view() -> dict[str, object]:
     }
 
 
+def cleanup_legacy_paths(*, dry_run: bool) -> list[Path]:
+    removed: list[Path] = []
+    legacy_path = legacy_env_path()
+    removed_names: set[str] = set()
+    if legacy_path.exists():
+        removed.append(legacy_path)
+        removed_names.add(legacy_path.name)
+        if not dry_run:
+            legacy_path.unlink()
+
+    legacy_dir = legacy_path.parent
+    remaining_entries = []
+    if legacy_dir.exists():
+        remaining_entries = [entry for entry in legacy_dir.iterdir() if entry.name not in removed_names]
+    if legacy_dir.exists() and not remaining_entries:
+        removed.append(legacy_dir)
+        if not dry_run:
+            legacy_dir.rmdir()
+
+    return removed
+
+
 def format_config_view(view: dict[str, object]) -> str:
     targets = view["targets"]
     legacy = view["legacy"]
@@ -792,14 +814,16 @@ def cmd_config(args: argparse.Namespace) -> int:
 
     if args.config_command == "cleanup-legacy":
         legacy_path = legacy_env_path()
-        if not legacy_path.exists():
+        removed = cleanup_legacy_paths(dry_run=args.dry_run)
+        if not removed:
             print(f"No obsolete legacy config found at {legacy_path}")
             return 0
         if args.dry_run:
-            print(f"Would remove obsolete legacy config: {legacy_path}")
+            for path in removed:
+                print(f"Would remove obsolete legacy config: {path}")
             return 0
-        legacy_path.unlink()
-        print(f"Removed obsolete legacy config: {legacy_path}")
+        for path in removed:
+            print(f"Removed obsolete legacy config: {path}")
         return 0
 
     raise ValueError(f"Unknown config command: {args.config_command}")

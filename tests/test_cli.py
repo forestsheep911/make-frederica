@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from entrykit.cli import (
     build_parser,
+    cleanup_legacy_paths,
     cmd_bootstrap_notion,
     cmd_capture,
     cmd_config,
@@ -284,6 +285,43 @@ class CliEncodingTests(unittest.TestCase):
             text = stdout.getvalue()
             self.assertIn("Configured backends:", text)
             self.assertIn("Doctor status:", text)
+
+    def test_cleanup_legacy_paths_dry_run_reports_file_and_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            legacy_dir = home / ".config" / "entrykit"
+            legacy_dir.mkdir(parents=True, exist_ok=True)
+            legacy_path = legacy_dir / "env.sh"
+            legacy_path.write_text("export NOTION_TOKEN='token'\n", encoding="utf-8")
+
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    removed = cleanup_legacy_paths(dry_run=True)
+
+            self.assertEqual(removed, [legacy_path, legacy_dir])
+            self.assertTrue(legacy_path.exists())
+            self.assertTrue(legacy_dir.exists())
+
+    def test_config_cleanup_legacy_removes_file_and_empty_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            legacy_dir = home / ".config" / "entrykit"
+            legacy_dir.mkdir(parents=True, exist_ok=True)
+            legacy_path = legacy_dir / "env.sh"
+            legacy_path.write_text("export NOTION_TOKEN='token'\n", encoding="utf-8")
+            args = type("Args", (), {"config_command": "cleanup-legacy", "dry_run": False})()
+
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    with patch("sys.stdout", new=io.StringIO()) as stdout:
+                        code = cmd_config(args)
+
+            self.assertEqual(code, 0)
+            text = stdout.getvalue()
+            self.assertIn(str(legacy_path), text)
+            self.assertIn(str(legacy_dir), text)
+            self.assertFalse(legacy_path.exists())
+            self.assertFalse(legacy_dir.exists())
 
     def test_config_set_default_writes_targets_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
