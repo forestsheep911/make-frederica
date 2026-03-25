@@ -574,6 +574,122 @@ class CliEncodingTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, "requires a configured output_dir"):
                         cmd_capture(args)
 
+    def test_cmd_capture_local_markdown_dry_run_requires_output_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            targets_path = home / ".frederica" / "config" / "targets.json"
+            targets_path.parent.mkdir(parents=True, exist_ok=True)
+            targets_path.write_text(
+                json.dumps(
+                    {
+                        "default_output": "screen",
+                        "backends": {
+                            "local_markdown": {
+                                "enabled": True,
+                                "output_dir": "",
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            input_path = home / "captured.json"
+            input_path.write_text(
+                json.dumps(
+                    {
+                        "title": "Dry Run Missing Output Dir",
+                        "source_tool": "codex",
+                        "tool_version": "",
+                        "model": "",
+                        "thinking_mode": "unknown",
+                        "project": "",
+                        "session_date": "2026-03-08",
+                        "session_id": "",
+                        "tags": [],
+                        "reusability_score": 50,
+                        "summary": "Short summary",
+                        "body_markdown": "Body text.",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "input": input_path,
+                    "strict_lint": False,
+                    "conversation": None,
+                    "dry_run": True,
+                    "output": "local_markdown",
+                    "status": "Captured",
+                    "env_file": None,
+                },
+            )()
+
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    with self.assertRaisesRegex(ValueError, "requires a configured output_dir"):
+                        cmd_capture(args)
+
+    def test_cmd_capture_local_markdown_dry_run_requires_enabled_backend(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            targets_path = home / ".frederica" / "config" / "targets.json"
+            targets_path.parent.mkdir(parents=True, exist_ok=True)
+            targets_path.write_text(
+                json.dumps(
+                    {
+                        "default_output": "screen",
+                        "backends": {
+                            "local_markdown": {
+                                "enabled": False,
+                                "output_dir": str(home / "notes"),
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            input_path = home / "captured.json"
+            input_path.write_text(
+                json.dumps(
+                    {
+                        "title": "Dry Run Disabled Backend",
+                        "source_tool": "codex",
+                        "tool_version": "",
+                        "model": "",
+                        "thinking_mode": "unknown",
+                        "project": "",
+                        "session_date": "2026-03-08",
+                        "session_id": "",
+                        "tags": [],
+                        "reusability_score": 50,
+                        "summary": "Short summary",
+                        "body_markdown": "Body text.",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "input": input_path,
+                    "strict_lint": False,
+                    "conversation": None,
+                    "dry_run": True,
+                    "output": "local_markdown",
+                    "status": "Captured",
+                    "env_file": None,
+                },
+            )()
+
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    with self.assertRaisesRegex(ValueError, "disabled"):
+                        cmd_capture(args)
+
     def test_cmd_capture_explicit_notion_overrides_default_local_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             home = Path(tmpdir)

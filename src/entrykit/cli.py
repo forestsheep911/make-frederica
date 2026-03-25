@@ -96,6 +96,15 @@ def obsidian_capture_error(targets: TargetSettings) -> ValueError:
     )
 
 
+def resolve_local_markdown_output_dir(targets: TargetSettings) -> Path:
+    output_dir = targets.local_markdown.output_dir
+    if not targets.local_markdown.enabled:
+        raise ValueError("Output target `local_markdown` is disabled in ~/.frederica/config/targets.json.")
+    if not output_dir:
+        raise ValueError("Output target `local_markdown` requires a configured output_dir.")
+    return Path(output_dir).expanduser()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="entrykit")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -387,7 +396,7 @@ def cmd_capture(args: argparse.Namespace) -> int:
                 "block_limit_warning": block_count >= BLOCK_WARNING_THRESHOLD,
             }
         elif output == "local_markdown":
-            markdown_dir = Path(targets.local_markdown.output_dir).expanduser()
+            markdown_dir = resolve_local_markdown_output_dir(targets)
             payload = {
                 "target": output,
                 "output_path": str(build_output_path(entry, markdown_dir)),
@@ -422,12 +431,7 @@ def cmd_capture(args: argparse.Namespace) -> int:
         return 0
 
     if output == "local_markdown":
-        output_dir = targets.local_markdown.output_dir
-        if not targets.local_markdown.enabled:
-            raise ValueError("Output target `local_markdown` is disabled in ~/.frederica/config/targets.json.")
-        if not output_dir:
-            raise ValueError("Output target `local_markdown` requires a configured output_dir.")
-        path = write_markdown_entry(entry, Path(output_dir).expanduser())
+        path = write_markdown_entry(entry, resolve_local_markdown_output_dir(targets))
         print(
             json.dumps(
                 {
