@@ -60,6 +60,13 @@ entrykit --help
 ./dist/entrykit --help
 ```
 
+On Windows, build the executable with PowerShell:
+
+```powershell
+.\scripts\build_binary_windows.ps1
+.\dist\entrykit.exe --help
+```
+
 See [docs/install-and-build.md](docs/install-and-build.md) for local build details and [docs/global-install.md](docs/global-install.md) for machine-level installation during development.
 
 ## Configuration

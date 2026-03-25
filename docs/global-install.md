@@ -15,6 +15,12 @@ Build first if needed:
 ./scripts/build_binary.sh
 ```
 
+On Windows, build the executable with:
+
+```powershell
+.\scripts\build_binary_windows.ps1
+```
+
 Then install globally:
 
 ```bash

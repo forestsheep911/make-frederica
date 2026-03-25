@@ -62,6 +62,19 @@ That script:
 - installs the `entrykit` CLI plus the build dependency `pyinstaller`
 - produces `dist/entrykit`
 
+On Windows, use the PowerShell equivalent:
+
+```powershell
+.\scripts\build_binary_windows.ps1
+```
+
+That script:
+
+- resolves Python from `-PythonBin`, `ENTRYKIT_PYTHON_BIN`, `python`, then `py -3`
+- creates `.venv-build\`
+- installs the editable package with the `build` extra
+- produces `dist\entrykit.exe`
+
 ## Global use on the same machine
 
 After building, install the binary into the dedicated user tool directory:
