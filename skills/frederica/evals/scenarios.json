@@ -220,6 +220,29 @@
       }
     },
     {
+      "id": "doctor-obsidian-default-missing-vault",
+      "argv": ["doctor"],
+      "home_files": {
+        ".frederica/config/targets.json": "{\n  \"default_output\": \"obsidian\",\n  \"backends\": {\n    \"obsidian\": {\n      \"enabled\": true,\n      \"vault_path\": \"{home}/missing-vault\",\n      \"folder\": \"Frederica\"\n    }\n  }\n}\n"
+      },
+      "env": {},
+      "fake_bins": [
+        {
+          "name": "uv",
+          "content": "@echo off\r\nexit /b 0\r\n"
+        }
+      ],
+      "path_mode": "fake_only",
+      "expect": {
+        "exit_code": 1,
+        "stdout_contains": [
+          "Default output: obsidian",
+          "Default output ready: False",
+          "Next step: set a valid Obsidian vault_path in ~/.frederica/config/targets.json."
+        ]
+      }
+    },
+    {
       "id": "check-frederica-evals-pass",
       "argv": ["check-evals", "--input", "skills/frederica/evals/evals.json", "--json"],
       "home_files": {},
