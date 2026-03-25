@@ -5,7 +5,7 @@ Use the compiled binary and local skill as machine-level development tools on th
 The dedicated runtime home is `~/.frederica`. Keep the toolchain there instead of inside the current working repository, because `frederica` is a note-capture helper and should not dirty arbitrary git projects with its own environment files.
 
 This document describes the current macOS flow.
-On Windows, the practical development-time global install may instead be a wrapper script that points at the repo checkout plus a Python 3.10+ interpreter. In that case, prefer a direct `python` executable over `py` when choosing the interpreter, because GUI or sandboxed environments may expose `python` while `py` cannot discover any installed runtimes.
+On Windows, use the PowerShell installer `scripts/install_global_windows.ps1`. It installs wrapper scripts that point at the repo checkout plus a Python 3.10+ interpreter, preferring a direct `python` executable over `py`.
 
 ## One-command install
 
@@ -56,3 +56,25 @@ Re-run:
 
 after rebuilding the binary or changing the skill contents.
 The installer also removes the legacy global skill name `chat-knowledge-capture` during migration to `frederica`.
+
+## Windows development-time install
+
+From PowerShell:
+
+```powershell
+.\scripts\install_global_windows.ps1 -SyncEnv -AddToUserPath
+```
+
+That script:
+
+- creates `~/.frederica/bin/entrykit.cmd`
+- creates `~/.frederica/bin/entrykit.ps1`
+- installs the stable skill to `~/.codex/skills/frederica` and `~/.agents/skills/frederica`
+- optionally copies the repo `.env` into `~/.frederica/config/.env`
+- optionally prepends `~/.frederica/bin` to the user `PATH`
+
+The generated wrappers resolve Python in this order:
+
+- `ENTRYKIT_PYTHON_BIN`
+- `python`
+- `py -3`

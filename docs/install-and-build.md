@@ -41,6 +41,12 @@ C:\path\to\python.exe -m entrykit.cli --help
 
 If you expose a global wrapper on Windows, make it prefer a direct Python executable first and only fall back to `py -3` when needed. If interpreter discovery is still unstable, allow an override such as `ENTRYKIT_PYTHON_BIN` pointing at a Python 3.10+ executable.
 
+This repo now includes a development-time installer for that wrapper:
+
+```powershell
+.\scripts\install_global_windows.ps1
+```
+
 ## Standalone binary build
 
 To build a single-file executable for the current machine:
