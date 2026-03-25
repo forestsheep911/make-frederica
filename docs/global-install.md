@@ -9,6 +9,8 @@ On Windows, use the PowerShell installer `scripts/install_global_windows.ps1`. I
 
 ## One-command install
 
+On macOS or Linux:
+
 Build first if needed:
 
 ```bash
@@ -64,6 +66,8 @@ after rebuilding the binary or changing the skill contents.
 The installer also removes the legacy global skill name `chat-knowledge-capture` during migration to `frederica`.
 
 ## Windows development-time install
+
+On Windows, do not use `install_global.sh`. Use the PowerShell installer instead:
 
 From PowerShell:
 

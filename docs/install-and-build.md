@@ -77,7 +77,7 @@ That script:
 
 ## Global use on the same machine
 
-After building, install the binary into the dedicated user tool directory:
+On macOS or Linux, after building, install the binary into the dedicated user tool directory:
 
 ```bash
 mkdir -p ~/.frederica/bin
@@ -91,6 +91,14 @@ export PATH="$HOME/.frederica/bin:$PATH"
 ```
 
 Then other local tools can call `entrykit` directly without caring about `PYTHONPATH` or the project checkout layout.
+
+On Windows, prefer the wrapper-based installer instead of manually copying `entrykit.exe`:
+
+```powershell
+.\scripts\install_global_windows.ps1 -SyncEnv -AddToUserPath
+```
+
+That flow keeps the repo checkout as the execution source and avoids having to manage a separate copied binary by hand.
 
 ## Guidance for agent-driven usage
 
