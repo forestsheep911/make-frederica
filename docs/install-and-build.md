@@ -81,6 +81,13 @@ When another assistant needs to run this repo locally, prefer these command form
 entrykit capture --input captured.json
 ```
 
+If that file is produced from Windows PowerShell, write it with explicit UTF-8 encoding instead of the shell default:
+
+```powershell
+Set-Content -Path captured.json -Value $json -Encoding utf8
+entrykit capture --input captured.json
+```
+
 If the binary is not installed but the repo checkout is available:
 
 ```bash

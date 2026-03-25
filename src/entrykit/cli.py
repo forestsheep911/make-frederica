@@ -42,6 +42,12 @@ from entrykit.scenarios import load_scenario_suite, run_scenario_suite, scenario
 
 
 MIN_PYTHON = (3, 10)
+UTF16_BOMS = (
+    b"\xff\xfe",
+    b"\xfe\xff",
+    b"\xff\xfe\x00\x00",
+    b"\x00\x00\xfe\xff",
+)
 
 
 def configure_stdio() -> None:
@@ -58,10 +64,16 @@ def decode_utf8(raw: bytes, source: str) -> str:
     try:
         return raw.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
+        powershell_hint = (
+            "On Windows PowerShell, prefer a UTF-8 file plus `--input`, and if you create the file "
+            "in PowerShell use `Set-Content -Encoding utf8`. If piping is unavoidable, set "
+            "`[Console]::InputEncoding` / `[Console]::OutputEncoding` to UTF-8 together with "
+            "`PYTHONUTF8=1` and `PYTHONIOENCODING=utf-8` before retrying."
+        )
+        if raw.startswith(UTF16_BOMS) or b"\x00" in raw[:32]:
+            raise ValueError(f"{source} appears to be UTF-16 or UTF-32 encoded. {powershell_hint}") from exc
         raise ValueError(
-            f"{source} must be UTF-8 encoded. On Windows PowerShell, prefer a UTF-8 file plus "
-            f"`--input`, or set `[Console]::InputEncoding` / `[Console]::OutputEncoding` to UTF-8 "
-            f"together with `PYTHONUTF8=1` and `PYTHONIOENCODING=utf-8` before retrying."
+            f"{source} must be UTF-8 encoded. {powershell_hint}"
         ) from exc
 
 

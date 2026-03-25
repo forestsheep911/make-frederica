@@ -60,6 +60,13 @@ entrykit capture --input captured.json
 
 On Windows, especially in PowerShell, prefer the file-based flow above over piping JSON directly into `entrykit`. This avoids mojibake when the shell or Python process does not stay on UTF-8 for non-ASCII text such as Chinese.
 
+If you create `captured.json` from PowerShell, set the encoding explicitly. Do not rely on the shell default:
+
+```powershell
+Set-Content -Path captured.json -Value $json -Encoding utf8
+entrykit capture --input captured.json
+```
+
 If piping is unavoidable, force UTF-8 first:
 
 ```powershell

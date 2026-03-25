@@ -49,7 +49,11 @@ class CliEncodingTests(unittest.TestCase):
 
     def test_decode_utf8_reports_actionable_error(self) -> None:
         with self.assertRaisesRegex(ValueError, "UTF-8 encoded"):
-            decode_utf8(b"\xff\xfe\xfd", "stdin")
+            decode_utf8(b"\x80not-utf8", "stdin")
+
+    def test_decode_utf8_reports_utf16_powerShell_hint(self) -> None:
+        with self.assertRaisesRegex(ValueError, "UTF-16 or UTF-32 encoded"):
+            decode_utf8("中文输入".encode("utf-16"), "stdin")
 
     def test_cmd_capture_rejects_body_over_block_limit(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
