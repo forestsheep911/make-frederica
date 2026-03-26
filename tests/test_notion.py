@@ -13,6 +13,7 @@ from entrykit.notion import (
     cleanup_legacy_model_properties,
     desired_database_properties,
     markdown_to_blocks,
+    render_notion_markdown,
     validate_block_limit,
 )
 
@@ -21,7 +22,9 @@ class NotionTests(unittest.TestCase):
     def setUp(self) -> None:
         self.entry = KnowledgeEntry.from_dict(
             {
+                "entry_id": "ke-20260308-12345678",
                 "title": "Adaptive body structures",
+                "entry_type": "decision",
                 "source_tool": "claude-code",
                 "tool_version": "1.2.3",
                 "model": "Claude Sonnet 4",
@@ -29,9 +32,19 @@ class NotionTests(unittest.TestCase):
                 "project": "entrykit",
                 "session_date": "2026-03-08T16:20:00+08:00",
                 "session_id": "session-123",
+                "language": "en",
+                "status": "active",
                 "tags": ["notes"],
+                "topics": ["schema-design"],
+                "tech_stack": ["python"],
+                "entities": ["KnowledgeEntry"],
+                "artifacts": ["repo:make-frederica"],
                 "reusability_score": 67,
                 "summary": "Let the AI pick the body structure.",
+                "decisions": ["Keep the body flexible."],
+                "actions": ["Update the projection."],
+                "open_questions": ["Should all arrays become properties?"],
+                "related_entries": ["ke-20260307-deadbeef"],
                 "body_markdown": (
                     "# Overview\n\n"
                     "Paragraph text.\n\n"
@@ -57,6 +70,19 @@ class NotionTests(unittest.TestCase):
             "Claude Sonnet 4",
         )
         self.assertEqual(properties["Session ID"]["rich_text"][0]["text"]["content"], "session-123")
+        self.assertEqual(properties["Entry Type"]["select"]["name"], "decision")
+        self.assertEqual(properties["Language"]["select"]["name"], "en")
+        self.assertEqual(properties["Lifecycle Status"]["select"]["name"], "active")
+        self.assertEqual(properties["Topics"]["multi_select"][0]["name"], "schema-design")
+        self.assertEqual(properties["Tech Stack"]["multi_select"][0]["name"], "python")
+
+    def test_render_notion_markdown_appends_structured_sections(self) -> None:
+        rendered = render_notion_markdown(self.entry)
+        self.assertIn("## Decisions", rendered)
+        self.assertIn("- Keep the body flexible.", rendered)
+        self.assertIn("## Actions", rendered)
+        self.assertIn("## Open Questions", rendered)
+        self.assertIn("## Artifacts", rendered)
 
     def test_markdown_to_blocks(self) -> None:
         blocks = markdown_to_blocks(self.entry.body_markdown)
@@ -94,6 +120,11 @@ class NotionTests(unittest.TestCase):
         self.assertEqual(properties["Reusability Score"]["number"]["format"], "number")
         self.assertEqual(properties["Model"]["rich_text"], {})
         self.assertEqual(properties["Session ID"]["rich_text"], {})
+        self.assertIn("Entry Type", properties)
+        self.assertIn("Language", properties)
+        self.assertIn("Lifecycle Status", properties)
+        self.assertIn("Topics", properties)
+        self.assertIn("Tech Stack", properties)
         patch = build_schema_patch({"Name": {"type": "title"}, "Model Version": {"type": "rich_text"}})
         self.assertEqual(patch["Model Version"]["name"], "Model")
         cleanup = cleanup_legacy_model_properties(

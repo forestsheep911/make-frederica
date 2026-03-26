@@ -10,7 +10,9 @@ from entrykit.models import KnowledgeEntry
 
 def _sample_entry() -> KnowledgeEntry:
     return KnowledgeEntry(
+        entry_id="ke-20260308-12345678",
         title="Capture coding-session architecture decisions",
+        entry_type="decision",
         source_tool="codex",
         tool_version="",
         model="",
@@ -18,9 +20,19 @@ def _sample_entry() -> KnowledgeEntry:
         project="entrykit",
         session_date="2026-03-08T16:20:00+08:00",
         session_id="",
+        language="en",
+        status="active",
         tags=["notion", "capture"],
+        topics=["schema-design"],
+        tech_stack=["python"],
+        entities=["KnowledgeEntry"],
+        artifacts=["repo:make-frederica"],
         reusability_score=84,
         summary="Short summary",
+        decisions=["Keep a canonical v2 shape."],
+        actions=["Add regression tests."],
+        open_questions=[],
+        related_entries=["ke-20260307-deadbeef"],
         body_markdown="# Overview\n\nBody text.",
     )
 
@@ -30,8 +42,12 @@ class LocalMarkdownTests(unittest.TestCase):
         rendered = render_markdown_entry(_sample_entry())
 
         self.assertIn("---\n", rendered)
+        self.assertIn('entry_id: "ke-20260308-12345678"', rendered)
         self.assertIn('title: "Capture coding-session architecture decisions"', rendered)
         self.assertIn("tags:\n  - \"notion\"\n  - \"capture\"", rendered)
+        self.assertIn("topics:\n  - \"schema-design\"", rendered)
+        self.assertIn("tech_stack:\n  - \"python\"", rendered)
+        self.assertIn("decisions:\n  - \"Keep a canonical v2 shape.\"", rendered)
         self.assertTrue(rendered.endswith("# Overview\n\nBody text.\n"))
 
     def test_build_output_path_appends_numeric_suffix_for_collisions(self) -> None:

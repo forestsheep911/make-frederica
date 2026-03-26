@@ -17,6 +17,9 @@ This is a focused second-pass review, not a fresh summarization task.
 Review only against these rules:
 - Do not guess `tool_version`, `model`, or `session_id`. Only keep them when they are explicitly visible in the conversation.
 - `title`, `summary`, and `body_markdown` must follow the dominant language of the conversation unless the user explicitly asked for another language.
+- If `language` is present, it should match the dominant language of the note.
+- Do not invent structured fields such as `entry_type`, `topics`, `tech_stack`, `entities`, `artifacts`, `decisions`, `actions`, `open_questions`, or `related_entries` unless the conversation supports them.
+- If `status` is `superseded`, prefer linking a replacement note through `related_entries` when that information exists.
 - The capture should cover the whole current session unless the user explicitly narrowed the scope.
 - The detail level should match the user's latest instruction. If the user asked for a detailed or exhaustive recap, the body should preserve the full sequence instead of compressing too much.
 - Focus on the capture that is already written. Do not invent new facts that are not supported by the conversation.
@@ -95,7 +98,7 @@ def review_schema_snippet() -> str:
         ],
         "suggested_changes": [
             "Leave `model` empty because it was not explicitly visible.",
-            "Rewrite `title`, `summary`, and `body_markdown` in Chinese.",
+            "Rewrite `title`, `summary`, `body_markdown`, and `language` so they match the Chinese conversation.",
         ],
         "revised_entry": None,
     }

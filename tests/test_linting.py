@@ -40,6 +40,7 @@ Session:              019cc940-7028-7d23-8424-514cfb703030
         entry = KnowledgeEntry.from_dict(
             {
                 "title": "English title",
+                "language": "en",
                 "source_tool": "gemini-cli",
                 "tool_version": "",
                 "model": "",
@@ -58,6 +59,104 @@ Session:              019cc940-7028-7d23-8424-514cfb703030
         codes = {issue.code for issue in result.issues}
         self.assertIn("language-mismatch", codes)
         self.assertIn("body-language-mismatch", codes)
+
+    def test_warns_when_language_field_missing_for_clear_language(self) -> None:
+        entry = KnowledgeEntry.from_dict(
+            {
+                "title": "English title",
+                "source_tool": "gemini-cli",
+                "tool_version": "",
+                "model": "",
+                "thinking_mode": "unknown",
+                "project": "entrykit",
+                "session_date": "2026-03-08T16:20:00+08:00",
+                "session_id": "",
+                "tags": ["workflow"],
+                "reusability_score": 60,
+                "summary": "English summary.",
+                "body_markdown": "# Overview\n\nEnglish technical content only.",
+            }
+        )
+        conversation = (
+            "This conversation is entirely in English about schema design, Notion capture workflows, "
+            "projection rules, review prompts, migration planning, and structured metadata validation. "
+            "We discussed implementation details, tradeoffs, retrieval quality, canonical storage, and backend behavior."
+        )
+        result = lint_entry(entry, conversation=conversation)
+        codes = {issue.code for issue in result.issues}
+        self.assertIn("missing-language-field", codes)
+
+    def test_detects_language_field_mismatch(self) -> None:
+        entry = KnowledgeEntry.from_dict(
+            {
+                "title": "中文标题",
+                "language": "en",
+                "source_tool": "codex",
+                "tool_version": "",
+                "model": "",
+                "thinking_mode": "unknown",
+                "project": "entrykit",
+                "session_date": "2026-03-08T16:20:00+08:00",
+                "session_id": "",
+                "tags": ["workflow"],
+                "reusability_score": 60,
+                "summary": "中文摘要。",
+                "body_markdown": "# 概览\n\n中文技术内容。",
+            }
+        )
+        conversation = (
+            "这次我们全部用中文讨论 schema 设计、Notion 写入流程、字段规范、检索质量、"
+            "迁移计划、结构化元数据、实现细节、兼容策略和后续评审方式。"
+        )
+        result = lint_entry(entry, conversation=conversation)
+        codes = {issue.code for issue in result.issues}
+        self.assertIn("language-field-mismatch", codes)
+
+    def test_detects_self_referential_related_entry(self) -> None:
+        entry = KnowledgeEntry.from_dict(
+            {
+                "entry_id": "ke-self",
+                "title": "Self reference",
+                "source_tool": "codex",
+                "tool_version": "",
+                "model": "",
+                "thinking_mode": "unknown",
+                "project": "entrykit",
+                "session_date": "2026-03-08T16:20:00+08:00",
+                "session_id": "",
+                "tags": ["workflow"],
+                "reusability_score": 60,
+                "summary": "Summary.",
+                "related_entries": ["ke-self"],
+                "body_markdown": "# Overview\n\nBody.",
+            }
+        )
+        result = lint_entry(entry)
+        codes = {issue.code for issue in result.issues}
+        self.assertIn("self-referential-related-entry", codes)
+
+    def test_warns_for_superseded_without_replacement_link(self) -> None:
+        entry = KnowledgeEntry.from_dict(
+            {
+                "entry_id": "ke-old",
+                "title": "Old note",
+                "status": "superseded",
+                "source_tool": "codex",
+                "tool_version": "",
+                "model": "",
+                "thinking_mode": "unknown",
+                "project": "entrykit",
+                "session_date": "2026-03-08T16:20:00+08:00",
+                "session_id": "",
+                "tags": ["workflow"],
+                "reusability_score": 60,
+                "summary": "Summary.",
+                "body_markdown": "# Overview\n\nBody.",
+            }
+        )
+        result = lint_entry(entry)
+        codes = {issue.code for issue in result.issues}
+        self.assertIn("superseded-without-replacement-link", codes)
 
     def test_detects_detail_mismatch(self) -> None:
         entry = KnowledgeEntry.from_dict(
@@ -158,6 +257,7 @@ Session:              019cc940-7028-7d23-8424-514cfb703030
                 "project": "entrykit",
                 "session_date": "2026-03-08T16:20:00+08:00",
                 "session_id": "019cc940-7028-7d23-8424-514cfb703030",
+                "language": "zh-CN",
                 "tags": ["schema", "workflow"],
                 "reusability_score": 88,
                 "summary": "这次对话完成了 schema 收敛。",

@@ -17,10 +17,20 @@ def _yaml_quote(value: str) -> str:
     return f'"{escaped}"'
 
 
+def _append_yaml_string_list(lines: list[str], name: str, values: list[str]) -> None:
+    if values:
+        lines.append(f"{name}:")
+        lines.extend(f"  - {_yaml_quote(value)}" for value in values)
+    else:
+        lines.append(f"{name}: []")
+
+
 def render_markdown_entry(entry: KnowledgeEntry) -> str:
     lines = [
         "---",
+        f"entry_id: {_yaml_quote(entry.entry_id)}",
         f"title: {_yaml_quote(entry.title)}",
+        f"entry_type: {_yaml_quote(entry.entry_type or '')}",
         f"source_tool: {_yaml_quote(entry.source_tool)}",
         f"tool_version: {_yaml_quote(entry.tool_version or '')}",
         f"model: {_yaml_quote(entry.model or '')}",
@@ -28,16 +38,26 @@ def render_markdown_entry(entry: KnowledgeEntry) -> str:
         f"project: {_yaml_quote(entry.project or '')}",
         f"session_date: {_yaml_quote(entry.session_date)}",
         f"session_id: {_yaml_quote(entry.session_id or '')}",
+        f"language: {_yaml_quote(entry.language or '')}",
+        f"status: {_yaml_quote(entry.status or '')}",
         f"reusability_score: {entry.reusability_score}",
     ]
-    if entry.tags:
-        lines.append("tags:")
-        lines.extend(f"  - {_yaml_quote(tag)}" for tag in entry.tags)
-    else:
-        lines.append("tags: []")
+    _append_yaml_string_list(lines, "tags", entry.tags)
+    _append_yaml_string_list(lines, "topics", entry.topics)
+    _append_yaml_string_list(lines, "tech_stack", entry.tech_stack)
+    _append_yaml_string_list(lines, "entities", entry.entities)
+    _append_yaml_string_list(lines, "artifacts", entry.artifacts)
     lines.extend(
         [
             f"summary: {_yaml_quote(entry.summary)}",
+        ]
+    )
+    _append_yaml_string_list(lines, "decisions", entry.decisions)
+    _append_yaml_string_list(lines, "actions", entry.actions)
+    _append_yaml_string_list(lines, "open_questions", entry.open_questions)
+    _append_yaml_string_list(lines, "related_entries", entry.related_entries)
+    lines.extend(
+        [
             "---",
             "",
             entry.body_markdown,

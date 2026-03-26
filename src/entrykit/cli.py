@@ -29,6 +29,7 @@ from entrykit.notion import (
     build_properties,
     cleanup_legacy_model_properties,
     markdown_to_blocks,
+    render_notion_markdown,
     validate_block_limit,
 )
 from entrykit.prompts import render_capture_prompt
@@ -366,9 +367,10 @@ def read_input(input_path: Path | None) -> str:
 def cmd_capture(args: argparse.Namespace) -> int:
     raw = read_input(args.input)
     entry = KnowledgeEntry.from_json(raw)
-    block_count = validate_block_limit(entry.body_markdown)
     targets = TargetSettings.load()
     output = args.output or targets.default_output
+    notion_body = render_notion_markdown(entry)
+    block_count = validate_block_limit(notion_body if output == "notion" else entry.body_markdown)
     if args.strict_lint:
         conversation = None
         if args.conversation:
@@ -391,7 +393,7 @@ def cmd_capture(args: argparse.Namespace) -> int:
             payload = {
                 "target": output,
                 "properties": build_properties(entry, args.status),
-                "children": markdown_to_blocks(entry.body_markdown),
+                "children": markdown_to_blocks(notion_body),
                 "block_count": block_count,
                 "block_limit_warning": block_count >= BLOCK_WARNING_THRESHOLD,
             }

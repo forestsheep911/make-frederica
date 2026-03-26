@@ -23,6 +23,26 @@ class NotionError(RuntimeError):
     """Raised when Notion API requests fail."""
 
 
+def _append_section(lines: list[str], heading: str, items: list[str]) -> None:
+    if not items:
+        return
+    if lines and lines[-1] != "":
+        lines.append("")
+    lines.append(f"## {heading}")
+    lines.append("")
+    lines.extend(f"- {item}" for item in items)
+
+
+def render_notion_markdown(entry: KnowledgeEntry) -> str:
+    lines = [entry.body_markdown.strip()]
+    _append_section(lines, "Decisions", entry.decisions)
+    _append_section(lines, "Actions", entry.actions)
+    _append_section(lines, "Open Questions", entry.open_questions)
+    _append_section(lines, "Artifacts", entry.artifacts)
+    body = "\n".join(line for line in lines if line is not None).strip()
+    return body + "\n"
+
+
 def chunk_text(text: str, limit: int = MAX_RICH_TEXT) -> list[str]:
     if not text:
         return [""]
@@ -245,7 +265,7 @@ class NotionClient:
         return self._request("PATCH", f"/pages/{page_id}", payload)
 
     def create_page(self, database_id: str, entry: KnowledgeEntry, status: str) -> dict[str, Any]:
-        children = markdown_to_blocks(entry.body_markdown)
+        children = markdown_to_blocks(render_notion_markdown(entry))
         payload = {
             "parent": {"database_id": database_id},
             "properties": build_properties(entry, status),
@@ -282,6 +302,26 @@ def build_properties(entry: KnowledgeEntry, status: str) -> dict[str, Any]:
         },
     }
 
+    if entry.entry_type:
+        properties["Entry Type"] = {
+            "select": {"name": entry.entry_type},
+        }
+    if entry.language:
+        properties["Language"] = {
+            "select": {"name": entry.language},
+        }
+    if entry.status:
+        properties["Lifecycle Status"] = {
+            "select": {"name": entry.status},
+        }
+    if entry.topics:
+        properties["Topics"] = {
+            "multi_select": [{"name": topic} for topic in entry.topics],
+        }
+    if entry.tech_stack:
+        properties["Tech Stack"] = {
+            "multi_select": [{"name": tech} for tech in entry.tech_stack],
+        }
     if entry.tool_version:
         properties["Tool Version"] = {
             "rich_text": rich_text(entry.tool_version),
@@ -341,6 +381,28 @@ def desired_database_properties() -> dict[str, Any]:
         },
         "Summary": {
             "rich_text": {},
+        },
+        "Entry Type": {
+            "select": {},
+        },
+        "Language": {
+            "select": {},
+        },
+        "Lifecycle Status": {
+            "select": {
+                "options": [
+                    {"name": "active", "color": "green"},
+                    {"name": "draft", "color": "gray"},
+                    {"name": "superseded", "color": "yellow"},
+                    {"name": "archived", "color": "brown"},
+                ]
+            },
+        },
+        "Topics": {
+            "multi_select": {},
+        },
+        "Tech Stack": {
+            "multi_select": {},
         },
         "Status": {
             "select": {

@@ -122,6 +122,17 @@ def _likely_under_covers_session(entry: KnowledgeEntry, conversation: str) -> bo
     return len(conversation) > 6000 and len(entry.body_markdown) < 1500
 
 
+def _language_matches_declared(entry_language: str | None, dominant_language: str) -> bool:
+    if not entry_language or dominant_language not in {"zh", "en"}:
+        return True
+    normalized = entry_language.strip().lower()
+    if dominant_language == "zh":
+        return normalized.startswith("zh")
+    if dominant_language == "en":
+        return normalized == "en" or normalized.startswith("en-")
+    return True
+
+
 def lint_entry(entry: KnowledgeEntry, conversation: str | None = None) -> LintResult:
     issues: list[LintIssue] = []
     block_count = count_markdown_blocks(entry.body_markdown)
@@ -147,6 +158,27 @@ def lint_entry(entry: KnowledgeEntry, conversation: str | None = None) -> LintRe
                     f"`body_markdown` already renders to {block_count} Notion blocks. This is "
                     f"close to the Notion limit of {MAX_NOTION_BLOCKS}; prefer in-block newlines "
                     "and merge adjacent paragraphs or list items when possible."
+                ),
+            )
+        )
+
+    if entry.related_entries and entry.entry_id in entry.related_entries:
+        issues.append(
+            LintIssue(
+                severity="error",
+                code="self-referential-related-entry",
+                message="`related_entries` includes the current `entry_id`, which creates a self-reference.",
+            )
+        )
+
+    if entry.status == "superseded" and not entry.related_entries:
+        issues.append(
+            LintIssue(
+                severity="warning",
+                code="superseded-without-replacement-link",
+                message=(
+                    "`status` is `superseded`, but `related_entries` is empty. "
+                    "Consider linking the replacement note."
                 ),
             )
         )
@@ -194,6 +226,29 @@ def lint_entry(entry: KnowledgeEntry, conversation: str | None = None) -> LintRe
                     ),
                 )
             )
+
+        if dominant_language in {"zh", "en"}:
+            if not entry.language:
+                issues.append(
+                    LintIssue(
+                        severity="warning",
+                        code="missing-language-field",
+                        message=(
+                            f"Conversation appears {dominant_language}-dominant, but `language` is empty."
+                        ),
+                    )
+                )
+            elif not _language_matches_declared(entry.language, dominant_language):
+                issues.append(
+                    LintIssue(
+                        severity="error",
+                        code="language-field-mismatch",
+                        message=(
+                            f"`language` is `{entry.language}`, but the conversation appears "
+                            f"{dominant_language}-dominant."
+                        ),
+                    )
+                )
 
         visible_model = metadata.get("model")
         if visible_model:

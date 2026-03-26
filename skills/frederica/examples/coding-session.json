@@ -1,5 +1,7 @@
 {
+  "entry_id": "ke-20260308-6ac2d8be",
   "title": "Stabilize AI chat capture schema for Notion",
+  "entry_type": "decision",
   "source_tool": "codex",
   "tool_version": "",
   "model": "gpt-5.4",
@@ -7,8 +9,21 @@
   "project": "make-frederica",
   "session_date": "2026-03-08T16:20:00+08:00",
   "session_id": "",
+  "language": "en",
+  "status": "active",
   "tags": ["notion", "knowledge-capture", "schema"],
+  "topics": ["knowledge-capture", "schema-design"],
+  "tech_stack": ["python", "notion-api"],
+  "entities": ["KnowledgeEntry", "Notion", "entrykit"],
+  "artifacts": ["repo:make-frederica", "cmd:entrykit capture"],
   "reusability_score": 88,
   "summary": "Store searchable metadata in database properties and keep the long-form session record in the Notion page body.",
+  "decisions": [
+    "Use one database for v1 instead of multiple databases.",
+    "Keep metadata in database properties and the long note in the page body."
+  ],
+  "actions": [],
+  "open_questions": [],
+  "related_entries": [],
   "body_markdown": "# Overview\n\nWe converged on a Notion-first capture flow for AI chat sessions.\n\n## Key decisions\n\n- Use one database for v1 instead of multiple databases.\n- Keep metadata in database properties.\n- Let the long note live in the page body.\n- Do not force fixed section names in the body.\n\n## Why this works\n\nThis keeps the schema stable enough for filtering while preserving enough context to make the note useful later.\n\n## Reusable lessons\n\n- Separate search fields from narrative content.\n- Prefer explicit unknown values over guessed metadata.\n- Design the body format around the content instead of a rigid template."
 }

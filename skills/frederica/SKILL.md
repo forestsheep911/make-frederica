@@ -210,7 +210,9 @@ If local execution is available, prefer the supporting CLI for config work:
    - What is reusable later
 14. Build a `KnowledgeEntry` JSON object that matches [`references/schema.md`](references/schema.md).
 15. Keep the database-facing fields concise and searchable:
+   - `entry_id`
    - `title`
+   - `entry_type`
    - `source_tool`
    - `tool_version`
    - `model`
@@ -218,9 +220,19 @@ If local execution is available, prefer the supporting CLI for config work:
    - `project`
    - `session_date`
    - `session_id`
+   - `language`
+   - `status`
    - `tags`
+   - `topics`
+   - `tech_stack`
+   - `entities`
+   - `artifacts`
    - `reusability_score`
    - `summary`
+   - `decisions`
+   - `actions`
+   - `open_questions`
+   - `related_entries`
 16. Write the long-form content into `body_markdown`. Adapt the structure to the material instead of forcing fixed headings.
 17. Treat the Notion body as block-limited content rather than unlimited Markdown:
    - stay comfortably under 100 rendered Notion blocks
@@ -274,12 +286,21 @@ If local execution is available, prefer the supporting CLI for config work:
 - Unless the user explicitly narrows the scope, summarize the whole current session rather than only the most recent exchange.
 - Set `thinking_mode` to one of `unknown`, `low`, `medium`, `high`, or `extra-high`.
 - Use `session_id` only when the current tool explicitly exposes a conversation or session identifier, such as visible output from `/status` or an equivalent command.
+- Preserve `entry_id` when it already exists. If the input is effectively legacy v1 and no `entry_id` is available, let the application generate it during normalization instead of inventing an ad hoc manual ID.
+- Use `entry_type` when the note category is clear, such as `decision`, `discussion`, `howto`, `debugging`, `proposal`, or `reference`. Leave it empty instead of forcing a weak label.
+- Use `language` for the dominant note language, such as `zh-CN` or `en`, when it is clear from the conversation.
+- Use `status` for canonical lifecycle state such as `active`, `draft`, `superseded`, or `archived`. Do not confuse this with backend workflow status.
 - Infer `tags` from the conversation instead of using a fixed list. Prefer 3 to 8 concise tags. Reuse common tags when they fit, such as `debugging`, `workflow`, `notion`, `prompting`, `python`, `cursor`, `codex`, `claude-code`, `gemini-cli`, `design`, `travel`, `research`, `architecture`, and `testing`.
+- Use `topics` for what the note is about conceptually, such as `schema-design` or `retrieval`.
+- Use `tech_stack` for the main technologies or platforms involved, such as `python`, `react`, or `notion-api`.
+- Use `entities` for explicit named systems, products, APIs, classes, or concepts.
+- Use `artifacts` for concrete references such as `file:...`, `repo:...`, `cmd:...`, `url:...`, or `issue:...`.
 - Set `reusability_score` as an integer from `0` to `100`.
 - Prefer full ISO 8601 date-time in `session_date` when available.
 - Write `title`, `summary`, and `body_markdown` in the dominant language of the conversation unless the user explicitly asks for another language.
 - Treat language matching as a hard constraint. Do not switch to English just because the topic is technical.
 - Make `summary` short enough for Notion list views.
+- Use `decisions`, `actions`, `open_questions`, and `related_entries` when the source conversation actually contains that structure. Leave them empty rather than manufacturing certainty.
 - Write `body_markdown` in Markdown that can be rendered as a Notion page body.
 - Keep the rendered Notion body under 100 blocks. Do not spend blocks on cosmetic spacing.
 - Prefer in-block newlines inside a paragraph when content belongs together.
@@ -339,7 +360,9 @@ Before returning the final JSON, check these points:
 
 ```json
 {
+  "entry_id": "ke-20260308-7f3a2c1d",
   "title": "Stabilize chat-to-Notion capture schema",
+  "entry_type": "decision",
   "source_tool": "codex",
   "tool_version": "v0.111.0",
   "model": "gpt-5.4",
@@ -347,9 +370,21 @@ Before returning the final JSON, check these points:
   "project": "make-frederica",
   "session_date": "2026-03-08T16:20:00+08:00",
   "session_id": "",
+  "language": "en",
+  "status": "active",
   "tags": ["notion", "knowledge-capture", "schema"],
+  "topics": ["knowledge-capture", "schema-design"],
+  "tech_stack": ["python", "notion-api"],
+  "entities": ["KnowledgeEntry", "Notion", "entrykit"],
+  "artifacts": ["repo:make-frederica", "cmd:entrykit capture"],
   "reusability_score": 86,
   "summary": "Use a stable JSON schema for searchable metadata and keep long-form notes in the Notion page body.",
+  "decisions": [
+    "Use the canonical JSON note as the source of truth and project it into backends."
+  ],
+  "actions": [],
+  "open_questions": [],
+  "related_entries": [],
   "body_markdown": "# Overview\n\nWe settled on a single-database Notion design with flexible page content.\n\n## Why it works\n\n- Database properties stay searchable.\n- Long notes live in the page body.\n- Future note backends can map the same JSON differently."
 }
 ```

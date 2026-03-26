@@ -48,7 +48,9 @@ Only start a new block when the structure really changes.
 
 def schema_snippet(source_tool: str) -> str:
     schema = {
+        "entry_id": "ke-20260308-7f3a2c1d",
         "title": "Short page title",
+        "entry_type": "decision",
         "source_tool": source_tool,
         "tool_version": "",
         "model": "",
@@ -56,9 +58,19 @@ def schema_snippet(source_tool: str) -> str:
         "project": "make-frederica",
         "session_date": "2026-03-08T16:20:00+08:00",
         "session_id": "",
+        "language": "en",
+        "status": "active",
         "tags": ["notion", "workflow"],
+        "topics": ["knowledge-capture", "schema-design"],
+        "tech_stack": ["python", "notion-api"],
+        "entities": ["KnowledgeEntry", "Notion", "entrykit"],
+        "artifacts": ["repo:make-frederica", "cmd:entrykit capture"],
         "reusability_score": 80,
         "summary": "One short summary for database browsing.",
+        "decisions": ["Keep a stable canonical note format and project it into backends."],
+        "actions": [],
+        "open_questions": [],
+        "related_entries": [],
         "body_markdown": "# Overview\n\nMain notes go here.",
     }
     return json.dumps(schema, ensure_ascii=False, indent=2)
