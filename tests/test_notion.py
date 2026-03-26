@@ -87,6 +87,45 @@ class NotionTests(unittest.TestCase):
         self.assertIn("## Open Questions", rendered)
         self.assertIn("## Artifacts", rendered)
 
+    def test_render_notion_markdown_skips_sections_already_present_in_body(self) -> None:
+        entry = KnowledgeEntry.from_dict(
+            {
+                "title": "Body already structured",
+                "source_tool": "codex",
+                "tool_version": "",
+                "model": "",
+                "thinking_mode": "unknown",
+                "project": "entrykit",
+                "session_date": "2026-03-08T16:20:00+08:00",
+                "session_id": "",
+                "reusability_score": 60,
+                "summary": "Summary.",
+                "decisions": ["Keep the body flexible."],
+                "actions": ["Update the projection."],
+                "open_questions": ["Should all arrays become properties?"],
+                "artifacts": ["repo:make-frederica"],
+                "body_markdown": (
+                    "# Overview\n\n"
+                    "Paragraph text.\n\n"
+                    "## Key Decisions\n\n"
+                    "- Keep the body flexible.\n\n"
+                    "## Next Steps\n\n"
+                    "- Update the projection.\n\n"
+                    "## Open Questions\n\n"
+                    "- Should all arrays become properties?\n\n"
+                    "## Artifacts\n\n"
+                    "- repo:make-frederica"
+                ),
+            }
+        )
+        rendered = render_notion_markdown(entry)
+        self.assertEqual(rendered.count("## Decisions"), 0)
+        self.assertEqual(rendered.count("## Actions"), 0)
+        self.assertEqual(rendered.count("## Open Questions"), 1)
+        self.assertEqual(rendered.count("## Artifacts"), 1)
+        self.assertEqual(rendered.count("## Key Decisions"), 1)
+        self.assertEqual(rendered.count("## Next Steps"), 1)
+
     def test_markdown_to_blocks(self) -> None:
         blocks = markdown_to_blocks(self.entry.body_markdown)
         self.assertEqual(blocks[0]["type"], "heading_1")

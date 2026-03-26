@@ -23,6 +23,31 @@ class NotionError(RuntimeError):
     """Raised when Notion API requests fail."""
 
 
+def _normalize_heading(text: str) -> str:
+    return " ".join(text.strip().lower().split())
+
+
+SECTION_HEADING_ALIASES = {
+    "Decisions": {_normalize_heading("Decisions"), _normalize_heading("Key Decisions")},
+    "Actions": {_normalize_heading("Actions"), _normalize_heading("Next Actions"), _normalize_heading("Next Steps")},
+    "Open Questions": {_normalize_heading("Open Questions"), _normalize_heading("Unresolved Questions")},
+    "Artifacts": {_normalize_heading("Artifacts"), _normalize_heading("References")},
+}
+
+
+def _existing_headings(markdown: str) -> set[str]:
+    headings: set[str] = set()
+    for raw_line in markdown.splitlines():
+        stripped = raw_line.strip()
+        if not stripped.startswith("#"):
+            continue
+        level = len(stripped) - len(stripped.lstrip("#"))
+        heading_text = stripped[level:].strip()
+        if heading_text:
+            headings.add(_normalize_heading(heading_text))
+    return headings
+
+
 def _append_section(lines: list[str], heading: str, items: list[str]) -> None:
     if not items:
         return
@@ -34,11 +59,17 @@ def _append_section(lines: list[str], heading: str, items: list[str]) -> None:
 
 
 def render_notion_markdown(entry: KnowledgeEntry) -> str:
-    lines = [entry.body_markdown.strip()]
-    _append_section(lines, "Decisions", entry.decisions)
-    _append_section(lines, "Actions", entry.actions)
-    _append_section(lines, "Open Questions", entry.open_questions)
-    _append_section(lines, "Artifacts", entry.artifacts)
+    body = entry.body_markdown.strip()
+    existing_headings = _existing_headings(body)
+    lines = [body]
+    if SECTION_HEADING_ALIASES["Decisions"].isdisjoint(existing_headings):
+        _append_section(lines, "Decisions", entry.decisions)
+    if SECTION_HEADING_ALIASES["Actions"].isdisjoint(existing_headings):
+        _append_section(lines, "Actions", entry.actions)
+    if SECTION_HEADING_ALIASES["Open Questions"].isdisjoint(existing_headings):
+        _append_section(lines, "Open Questions", entry.open_questions)
+    if SECTION_HEADING_ALIASES["Artifacts"].isdisjoint(existing_headings):
+        _append_section(lines, "Artifacts", entry.artifacts)
     body = "\n".join(line for line in lines if line is not None).strip()
     return body + "\n"
 
