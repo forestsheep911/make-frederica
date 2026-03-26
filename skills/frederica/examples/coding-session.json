@@ -1,4 +1,5 @@
 {
+  "schema_version": "knowledge-entry/v2",
   "entry_id": "ke-20260308-6ac2d8be",
   "title": "Stabilize AI chat capture schema for Notion",
   "entry_type": "decision",

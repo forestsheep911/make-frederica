@@ -48,6 +48,7 @@ Only start a new block when the structure really changes.
 
 def schema_snippet(source_tool: str) -> str:
     schema = {
+        "schema_version": "knowledge-entry/v2",
         "entry_id": "ke-20260308-7f3a2c1d",
         "title": "Short page title",
         "entry_type": "decision",

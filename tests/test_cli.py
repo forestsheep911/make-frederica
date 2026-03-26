@@ -768,6 +768,69 @@ class CliEncodingTests(unittest.TestCase):
             self.assertIn("properties", payload)
             self.assertFalse(output_dir.exists())
 
+    def test_cmd_capture_notion_bootstraps_missing_v2_schema_before_write(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            env_path = home / ".frederica" / "config" / ".env"
+            env_path.parent.mkdir(parents=True, exist_ok=True)
+            env_path.write_text(
+                "NOTION_TOKEN=test-token\nNOTION_DATABASE_ID=test-db\n",
+                encoding="utf-8",
+            )
+            input_path = home / "captured.json"
+            input_path.write_text(
+                json.dumps(
+                    {
+                        "title": "Write to notion",
+                        "source_tool": "codex",
+                        "tool_version": "",
+                        "model": "",
+                        "thinking_mode": "unknown",
+                        "project": "",
+                        "session_date": "2026-03-08",
+                        "session_id": "",
+                        "tags": [],
+                        "reusability_score": 50,
+                        "summary": "Short summary",
+                        "body_markdown": "Body text.",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "input": input_path,
+                    "strict_lint": False,
+                    "conversation": None,
+                    "dry_run": False,
+                    "output": "notion",
+                    "status": "Captured",
+                    "env_file": None,
+                },
+            )()
+
+            fake_settings = type("Settings", (), {"notion_token": "token", "notion_database_id": "db"})()
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("pathlib.Path.home", return_value=home):
+                    with patch("entrykit.cli.Settings.load", return_value=fake_settings):
+                        with patch("entrykit.cli.NotionClient") as notion_client:
+                            notion_client.return_value.retrieve_database.return_value = {
+                                "properties": {"Name": {"type": "title"}}
+                            }
+                            notion_client.return_value.create_page.return_value = {
+                                "id": "page-123",
+                                "url": "https://notion.so/page-123",
+                            }
+                            with patch("sys.stdout", new=io.StringIO()) as stdout:
+                                code = cmd_capture(args)
+
+            self.assertEqual(code, 0)
+            notion_client.return_value.update_database_schema.assert_called_once()
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["target"], "notion")
+
     def test_cmd_capture_explicit_screen_overrides_default_local_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             home = Path(tmpdir)

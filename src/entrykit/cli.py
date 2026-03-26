@@ -417,6 +417,10 @@ def cmd_capture(args: argparse.Namespace) -> int:
         env_path = args.env_file or targets.notion.env_file or default_env_path()
         settings = Settings.load(env_path)
         client = NotionClient(settings.notion_token)
+        current = client.retrieve_database(settings.notion_database_id)
+        patch = build_schema_patch(current.get("properties", {}))
+        if patch:
+            client.update_database_schema(settings.notion_database_id, patch)
         response = client.create_page(settings.notion_database_id, entry, args.status)
         print(
             json.dumps(

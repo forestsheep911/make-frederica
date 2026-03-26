@@ -24,6 +24,7 @@ class KnowledgeEntryTests(unittest.TestCase):
             }
         )
         self.assertTrue(entry.entry_id.startswith("ke-20260308-"))
+        self.assertEqual(entry.schema_version, "knowledge-entry/v2")
         self.assertEqual(entry.reusability_score, 82)
         self.assertEqual(entry.thinking_mode, "high")
         self.assertEqual(entry.tool_version, "v0.111.0")
@@ -36,6 +37,7 @@ class KnowledgeEntryTests(unittest.TestCase):
         entry = KnowledgeEntry.from_dict(
             {
                 "entry_id": "ke-20260308-12345678",
+                "schema_version": "knowledge-entry/v2",
                 "title": "V2 capture",
                 "entry_type": "decision",
                 "source_tool": "codex",
@@ -65,6 +67,7 @@ class KnowledgeEntryTests(unittest.TestCase):
             entry.to_dict(),
             {
                 "entry_id": "ke-20260308-12345678",
+                "schema_version": "knowledge-entry/v2",
                 "title": "V2 capture",
                 "entry_type": "decision",
                 "source_tool": "codex",

@@ -279,6 +279,9 @@ def build_properties(entry: KnowledgeEntry, status: str) -> dict[str, Any]:
         "Name": {
             "title": rich_text(entry.title),
         },
+        "Schema Version": {
+            "rich_text": rich_text(entry.schema_version),
+        },
         "Source Tool": {
             "select": {"name": entry.source_tool},
         },
@@ -344,6 +347,9 @@ def build_properties(entry: KnowledgeEntry, status: str) -> dict[str, Any]:
 
 def desired_database_properties() -> dict[str, Any]:
     return {
+        "Schema Version": {
+            "rich_text": {},
+        },
         "Source Tool": {
             "select": {},
         },

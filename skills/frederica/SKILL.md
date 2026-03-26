@@ -210,6 +210,7 @@ If local execution is available, prefer the supporting CLI for config work:
    - What is reusable later
 14. Build a `KnowledgeEntry` JSON object that matches [`references/schema.md`](references/schema.md).
 15. Keep the database-facing fields concise and searchable:
+   - `schema_version`
    - `entry_id`
    - `title`
    - `entry_type`
@@ -287,6 +288,7 @@ If local execution is available, prefer the supporting CLI for config work:
 - Set `thinking_mode` to one of `unknown`, `low`, `medium`, `high`, or `extra-high`.
 - Use `session_id` only when the current tool explicitly exposes a conversation or session identifier, such as visible output from `/status` or an equivalent command.
 - Preserve `entry_id` when it already exists. If the input is effectively legacy v1 and no `entry_id` is available, let the application generate it during normalization instead of inventing an ad hoc manual ID.
+- Use `schema_version` for the canonical note shape. For the current format, use `knowledge-entry/v2`.
 - Use `entry_type` when the note category is clear, such as `decision`, `discussion`, `howto`, `debugging`, `proposal`, or `reference`. Leave it empty instead of forcing a weak label.
 - Use `language` for the dominant note language, such as `zh-CN` or `en`, when it is clear from the conversation.
 - Use `status` for canonical lifecycle state such as `active`, `draft`, `superseded`, or `archived`. Do not confuse this with backend workflow status.
@@ -360,6 +362,7 @@ Before returning the final JSON, check these points:
 
 ```json
 {
+  "schema_version": "knowledge-entry/v2",
   "entry_id": "ke-20260308-7f3a2c1d",
   "title": "Stabilize chat-to-Notion capture schema",
   "entry_type": "decision",

@@ -8,6 +8,7 @@ Default to the full current conversation unless the user explicitly asks to capt
 
 ```json
 {
+  "schema_version": "knowledge-entry/v2",
   "entry_id": "ke-20260308-7f3a2c1d",
   "title": "Short page title",
   "entry_type": "decision",
@@ -38,6 +39,7 @@ Default to the full current conversation unless the user explicitly asks to capt
 ## Field rules
 
 - `title`: Required. Short and specific.
+- `schema_version`: Required in the canonical model. For the current format, use `knowledge-entry/v2`.
 - `entry_id`: Required in the canonical model. Preserve it when present. If the input is legacy v1 and the field is missing, the application may generate it during normalization.
 - `entry_type`: Optional normalized note type such as `decision`, `discussion`, `howto`, `debugging`, `proposal`, or `reference`.
 - `source_tool`: Required. Human-readable tool label such as `codex`, `claude-code`, `cursor`, or `gemini-cli`.

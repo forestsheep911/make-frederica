@@ -58,6 +58,9 @@ class NotionTests(unittest.TestCase):
     def test_build_properties(self) -> None:
         properties = build_properties(self.entry, "Captured")
         self.assertEqual(properties["Thinking Mode"]["select"]["name"], "extra-high")
+        self.assertEqual(
+            properties["Schema Version"]["rich_text"][0]["text"]["content"], "knowledge-entry/v2"
+        )
         self.assertEqual(properties["Reusability Score"]["number"], 67)
         self.assertEqual(
             properties["Tool Version"]["rich_text"][0]["text"]["content"], "1.2.3"
@@ -119,6 +122,7 @@ class NotionTests(unittest.TestCase):
         )
         self.assertEqual(properties["Reusability Score"]["number"]["format"], "number")
         self.assertEqual(properties["Model"]["rich_text"], {})
+        self.assertEqual(properties["Schema Version"]["rich_text"], {})
         self.assertEqual(properties["Session ID"]["rich_text"], {})
         self.assertIn("Entry Type", properties)
         self.assertIn("Language", properties)

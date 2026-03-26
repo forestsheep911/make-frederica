@@ -10,6 +10,7 @@ from entrykit.models import KnowledgeEntry
 
 def _sample_entry() -> KnowledgeEntry:
     return KnowledgeEntry(
+        schema_version="knowledge-entry/v2",
         entry_id="ke-20260308-12345678",
         title="Capture coding-session architecture decisions",
         entry_type="decision",
@@ -42,6 +43,7 @@ class LocalMarkdownTests(unittest.TestCase):
         rendered = render_markdown_entry(_sample_entry())
 
         self.assertIn("---\n", rendered)
+        self.assertIn('schema_version: "knowledge-entry/v2"', rendered)
         self.assertIn('entry_id: "ke-20260308-12345678"', rendered)
         self.assertIn('title: "Capture coding-session architecture decisions"', rendered)
         self.assertIn("tags:\n  - \"notion\"\n  - \"capture\"", rendered)

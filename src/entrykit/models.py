@@ -13,6 +13,7 @@ ALLOWED_THINKING_MODES = {
     "high",
     "extra-high",
 }
+CURRENT_SCHEMA_VERSION = "knowledge-entry/v2"
 
 
 def _as_string_list(value: Any, field_name: str) -> list[str]:
@@ -53,6 +54,7 @@ def _default_entry_id(payload: dict[str, Any], session_date: str) -> str:
 
 @dataclass(frozen=True)
 class KnowledgeEntry:
+    schema_version: str
     entry_id: str
     title: str
     entry_type: str | None
@@ -80,6 +82,7 @@ class KnowledgeEntry:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "schema_version": self.schema_version,
             "entry_id": self.entry_id,
             "title": self.title,
             "entry_type": self.entry_type or "",
@@ -109,6 +112,7 @@ class KnowledgeEntry:
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "KnowledgeEntry":
         title = str(payload.get("title", "")).strip()
+        schema_version = _clean_optional_string(payload.get("schema_version")) or CURRENT_SCHEMA_VERSION
         source_tool = str(payload.get("source_tool", "")).strip()
         tool_version = _clean_optional_string(payload.get("tool_version"))
         model = _clean_optional_string(payload.get("model"))
@@ -154,6 +158,7 @@ class KnowledgeEntry:
             raise ValueError("reusability_score must be between 0 and 100")
 
         return cls(
+            schema_version=schema_version,
             entry_id=entry_id,
             title=title,
             entry_type=entry_type,

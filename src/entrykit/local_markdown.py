@@ -28,6 +28,7 @@ def _append_yaml_string_list(lines: list[str], name: str, values: list[str]) -> 
 def render_markdown_entry(entry: KnowledgeEntry) -> str:
     lines = [
         "---",
+        f"schema_version: {_yaml_quote(entry.schema_version)}",
         f"entry_id: {_yaml_quote(entry.entry_id)}",
         f"title: {_yaml_quote(entry.title)}",
         f"entry_type: {_yaml_quote(entry.entry_type or '')}",
