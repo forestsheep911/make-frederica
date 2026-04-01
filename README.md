@@ -31,6 +31,7 @@ The `entrykit` CLI currently provides these commands:
 - `entrykit doctor`: check local runtime prerequisites and Notion configuration
 - `entrykit config ...`: show or update frederica config under `~/.frederica/config`
 - `entrykit render-prompt`: print a reusable capture prompt for tools without native integration
+- `entrykit report`: read notes from Notion and answer natural-language questions against saved notes
 - `entrykit lint`: run schema and heuristic checks on a capture payload
 - `entrykit review`: prepare or validate a second-pass review response for a capture
 - `entrykit check-evals`: validate a skill eval file and report missing scenario coverage
@@ -86,7 +87,7 @@ The current output targets are:
 - `notion`
 - `local_markdown`
 
-Planned but not yet writable through `entrykit capture`:
+Planned future backend enhancements:
 
 - `obsidian`
 
@@ -148,9 +149,11 @@ Update the default output:
 entrykit config set-default notion
 ```
 
-For first-time setup, the currently writable persistent targets are `notion` and `local_markdown`. Do not offer `obsidian` as a ready save target yet; its config shape exists, but its capture writer is still pending.
+For first-time setup, the currently writable persistent targets are `notion` and `local_markdown`.
 
-If `capture` resolves to `obsidian`, `entrykit` now fails with an explicit message that Obsidian writing is still pending and that the current capture should use `notion` or `local_markdown` instead.
+`obsidian` remains a planned future backend and is not part of the current released write targets.
+
+If you use Obsidian today, configure `local_markdown.output_dir` to a folder inside your Obsidian vault. `entrykit` will write normal Markdown notes there, which Obsidian can use directly.
 
 Enable local markdown output:
 
@@ -193,6 +196,33 @@ Prepare a review prompt:
 ```bash
 entrykit review --input examples/coding-session.json --conversation conversation.txt
 ```
+
+Ask a question directly against your Notion notes:
+
+```bash
+entrykit report --query "总结本周工作"
+entrykit report --query "最近两周都做了些什么项目？"
+entrykit report --query "make-frederica 现在进行得如何了"
+entrykit report --query "make-frederica 有什么阻塞和下一步"
+entrykit report --query "make-frederica 现在进行得如何了" --plan-only
+entrykit report --query "最近两周都做了些什么项目？" --planner llm --plan-only
+```
+
+Planner modes:
+
+- `--planner auto`: if `OPENAI_API_KEY` is configured, prefer the LLM planner and fall back to heuristics on planner failure
+- `--planner heuristic`: skip the LLM planner and use local heuristics only
+- `--planner llm`: require the OpenAI planner and fail if it is unavailable
+
+Relevant environment variables for the LLM planner:
+
+- `OPENAI_API_KEY`
+- `ENTRYKIT_PLANNER_MODEL` (optional, defaults to `gpt-4o-mini`)
+- `OPENAI_BASE_URL` (optional)
+- `OPENAI_ORGANIZATION` (optional)
+- `OPENAI_PROJECT` (optional)
+
+The current read path is question-driven rather than report-template-driven: natural-language question -> normalized query schema -> live Notion retrieval -> rendered answer with source traces.
 
 Validate the frederica eval suite:
 

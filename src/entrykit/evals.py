@@ -20,6 +20,7 @@ REQUIRED_FREDERICA_COVERAGE = {
     "explicit_screen_override",
     "post_save_default_followup_local_markdown",
     "obsidian_planned_backend",
+    "note_reading",
 }
 
 

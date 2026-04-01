@@ -166,7 +166,7 @@
       }
     },
     {
-      "id": "capture-obsidian-default-reports-alternative-targets",
+      "id": "capture-obsidian-default-reports-local-markdown-guidance",
       "argv": ["capture", "--input", "{input}"],
       "home_files": {
         ".frederica/config/targets.json": "{\n  \"default_output\": \"obsidian\",\n  \"backends\": {\n    \"obsidian\": {\n      \"enabled\": true,\n      \"vault_path\": \"{home}/vault\",\n      \"folder\": \"Frederica\"\n    }\n  }\n}\n"
@@ -191,8 +191,8 @@
       "expect": {
         "exit_code": 1,
         "stderr_contains": [
-          "Output target `obsidian` is not implemented for capture yet.",
-          "use `notion` or `local_markdown`"
+          "Output target `obsidian` is not yet released as a supported backend.",
+          "configure `local_markdown`"
         ]
       }
     },
@@ -254,6 +254,108 @@
         "json_fields": {
           "ok": true,
           "skill_name": "frederica"
+        }
+      }
+    },
+    {
+      "id": "report-query-plan-only-this-week",
+      "argv": ["report", "--query", "总结本周工作", "--plan-only", "--json"],
+      "home_files": {},
+      "env": {},
+      "fake_bins": [],
+      "path_mode": "fake_only",
+      "expect": {
+        "exit_code": 0,
+        "json_fields": {
+          "plan.kind": "note-answer",
+          "plan.question": "总结本周工作",
+          "plan.scope": "all",
+          "plan.target": null,
+          "plan.group_by": "none",
+          "plan.focus_terms": ["progress"],
+          "plan.source": "notion",
+          "query.kind": "note-answer",
+          "query.question": "总结本周工作",
+          "query.scope": "all",
+          "query.target": null,
+          "query.group_by": "none",
+          "query.focus_terms": ["progress"],
+          "query.source": "notion"
+        }
+      }
+    },
+    {
+      "id": "report-query-plan-only-project-scope",
+      "argv": ["report", "--query", "最近两周都做了些什么项目？", "--plan-only", "--json"],
+      "home_files": {},
+      "env": {},
+      "fake_bins": [],
+      "path_mode": "fake_only",
+      "expect": {
+        "exit_code": 0,
+        "json_fields": {
+          "plan.kind": "note-answer",
+          "plan.scope": "all",
+          "plan.target": null,
+          "plan.group_by": "project",
+          "plan.focus_terms": ["projects"],
+          "plan.source": "notion",
+          "query.kind": "note-answer",
+          "query.scope": "all",
+          "query.target": null,
+          "query.group_by": "project",
+          "query.focus_terms": ["projects"],
+          "query.source": "notion"
+        }
+      }
+    },
+    {
+      "id": "report-query-plan-only-project-status",
+      "argv": ["report", "--query", "make-frederica 现在进行得如何了", "--plan-only", "--json"],
+      "home_files": {},
+      "env": {},
+      "fake_bins": [],
+      "path_mode": "fake_only",
+      "expect": {
+        "exit_code": 0,
+        "json_fields": {
+          "plan.kind": "note-answer",
+          "plan.scope": "project",
+          "plan.target": "make-frederica",
+          "plan.group_by": "none",
+          "plan.focus_terms": ["status"],
+          "plan.source": "notion",
+          "query.kind": "note-answer",
+          "query.scope": "project",
+          "query.target": "make-frederica",
+          "query.group_by": "none",
+          "query.focus_terms": ["status"],
+          "query.source": "notion"
+        }
+      }
+    },
+    {
+      "id": "report-query-plan-only-project-blockers",
+      "argv": ["report", "--query", "make-frederica 有什么阻塞和下一步", "--plan-only", "--json"],
+      "home_files": {},
+      "env": {},
+      "fake_bins": [],
+      "path_mode": "fake_only",
+      "expect": {
+        "exit_code": 0,
+        "json_fields": {
+          "plan.kind": "note-answer",
+          "plan.scope": "project",
+          "plan.target": "make-frederica",
+          "plan.group_by": "none",
+          "plan.focus_terms": ["blockers", "actions", "next_steps"],
+          "plan.source": "notion",
+          "query.kind": "note-answer",
+          "query.scope": "project",
+          "query.target": "make-frederica",
+          "query.group_by": "none",
+          "query.focus_terms": ["blockers", "actions", "next_steps"],
+          "query.source": "notion"
         }
       }
     }

@@ -50,7 +50,49 @@ class LocalMarkdownTests(unittest.TestCase):
         self.assertIn("topics:\n  - \"schema-design\"", rendered)
         self.assertIn("tech_stack:\n  - \"python\"", rendered)
         self.assertIn("decisions:\n  - \"Keep a canonical v2 shape.\"", rendered)
-        self.assertTrue(rendered.endswith("# Overview\n\nBody text.\n"))
+        self.assertIn("> Short summary\n\n# Overview\n\nBody text.", rendered)
+        self.assertNotIn("open_questions: []", rendered)
+
+    def test_render_markdown_entry_omits_empty_optional_fields(self) -> None:
+        entry = KnowledgeEntry(
+            schema_version="knowledge-entry/v2",
+            entry_id="ke-20260308-00000000",
+            title="Minimal note",
+            entry_type=None,
+            source_tool="codex",
+            tool_version=None,
+            model=None,
+            thinking_mode="unknown",
+            project=None,
+            session_date="2026-03-08",
+            session_id=None,
+            language=None,
+            status=None,
+            tags=[],
+            topics=[],
+            tech_stack=[],
+            entities=[],
+            artifacts=[],
+            reusability_score=50,
+            summary="Short summary",
+            decisions=[],
+            actions=[],
+            open_questions=[],
+            related_entries=[],
+            body_markdown="Body text.",
+        )
+
+        rendered = render_markdown_entry(entry)
+
+        self.assertIn('schema_version: "knowledge-entry/v2"', rendered)
+        self.assertIn('source_tool: "codex"', rendered)
+        self.assertIn('session_date: "2026-03-08"', rendered)
+        self.assertIn('summary: "Short summary"', rendered)
+        self.assertNotIn('entry_type: ""', rendered)
+        self.assertNotIn('tool_version: ""', rendered)
+        self.assertNotIn("tags: []", rendered)
+        self.assertNotIn("decisions: []", rendered)
+        self.assertIn("> Short summary\n\nBody text.", rendered)
 
     def test_build_output_path_appends_numeric_suffix_for_collisions(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

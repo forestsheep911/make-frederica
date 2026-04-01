@@ -1,17 +1,19 @@
 ---
 name: frederica
-description: "[dev 2026-03-26.1] Summarize an AI chat session into a structured knowledge entry that can be written to a Notion knowledge base with `entrykit capture`. Use when a user wants to archive the key outcomes of a conversation, preserve reusable lessons, or turn a completed chat into a searchable note instead of a one-off summary."
+description: "[dev 2026-03-27.1] Summarize an AI chat session into a structured knowledge entry that can be written to a configured backend with `entrykit capture`, especially Notion or local Markdown. Use when a user wants to archive the key outcomes of a conversation, preserve reusable lessons, or turn a completed chat into a searchable note instead of a one-off summary."
 ---
 
 # Frederica
 
 ## Overview
 
-Turn a finished conversation into a reusable knowledge entry with a stable JSON schema and a flexible Markdown body. Use this skill when the conversation itself is the artifact you want to preserve.
+Turn a finished conversation into a reusable knowledge entry with a stable JSON schema and a flexible Markdown body. This skill can also read existing notes through `entrykit report` and answer natural-language questions against the stored notes. Use capture when the conversation itself is the artifact you want to preserve. Use report when the user wants to read back what is already in the knowledge store.
 
 If the user explicitly invokes `frederica`, treat that as a signal that they likely want a reusable capture workflow rather than an ordinary in-chat summary. Resolve the target backend from the user's explicit request first, then from the configured default output. Do not silently collapse back to a plain chat recap when a configured persistent target is available.
 
 If the user explicitly asks to view or change frederica configuration, enter a configuration-management workflow instead of the capture workflow. Keep the boundary tight: only manage `~/.frederica/config/targets.json` and `~/.frederica/config/.env`.
+
+If the user asks about work that is already stored in notes, such as "最近两周都做了些什么项目？", "make-frederica 现在进行得如何了", or "看看最近有哪些阻塞", enter the report workflow instead of the capture workflow.
 
 ## Compatibility
 
@@ -20,7 +22,8 @@ If the user explicitly asks to view or change frederica configuration, enter a c
 - Treat `~/.frederica/config/targets.json` as the control-plane config for `default_output` and backend-specific settings.
 - Treat `screen`, `notion`, `obsidian`, and `local_markdown` as the known output target names in config.
 - Treat only `screen`, `notion`, and `local_markdown` as currently executable capture targets.
-- Treat `obsidian` as planned configuration state, not as a writable last-mile target yet.
+- Treat `local_markdown` as the current local durable-storage path, including for users who keep notes in an Obsidian vault folder.
+- Treat `obsidian` as future enhancement state, not as a current writable last-mile target.
 - Treat a user's explicit backend request as higher priority than `default_output` for the current turn.
 - Assume Notion writes require the environment expected by `entrykit`, including `NOTION_TOKEN` and `NOTION_DATABASE_ID`.
 - Do not assume `entrykit doctor` and `entrykit capture` load environment variables identically. Treat `doctor` success as advisory until an actual write path has either succeeded or a same-process env load has been verified.
@@ -60,7 +63,7 @@ If `entrykit doctor` is available, prefer it as the first fast-path preflight co
 - What is the resolved output target for this turn?
 - If the target is `screen`, do not block on persistence config.
 - If the target is `notion`, check the configured env file.
-- If the target is `obsidian`, check the configured vault path and target folder.
+- If the target is `obsidian`, treat that as a future-backend intent and be ready to redirect the user toward `local_markdown`.
 - If the target is `local_markdown`, check the configured output directory.
 
 If the answer to the execution layer is no, stop promising persistence. In that case, produce a JSON or Markdown artifact and clearly say that the current agent can prepare the capture but cannot perform the local Notion write from this environment.
@@ -74,6 +77,7 @@ If the tool layer is usable, resolve the output target in this order:
 3. If `targets.json` does not exist, treat the default as `screen`.
 4. If the resolved target is `screen` and the user did not express persistence intent, return the capture in chat.
 5. If the resolved target is `screen` but the user explicitly asks to save, persist, archive, or store the note, do not silently fall back to screen output. Enter a short backend-setup or backend-selection follow-up instead.
+6. If the user's intent is specifically local persistence and `default_output` resolves to `screen`, prefer guiding them toward `local_markdown` before discussing other backends.
 
 Do not ask the user to choose a backend on every run when `default_output` already resolves the target.
 
@@ -95,7 +99,7 @@ After resolving the target, check only the relevant backend configuration:
   - `backends.obsidian.enabled`
   - `backends.obsidian.vault_path`
   - optional `backends.obsidian.folder`
-  - but treat this as setup-only until the writer exists
+  - but treat this as future-planning config rather than a current write path
 
 If backend config is missing, say exactly what is missing before asking the user for anything else.
 
@@ -124,7 +128,8 @@ When the user is choosing a backend for first-time setup:
    - 2. `local_markdown`
 2. Mention `screen` only as a non-persistent fallback, not as a save target.
 3. Mention `obsidian` only if the user explicitly asks for it or already has it configured.
-4. If `obsidian` comes up, say clearly that its config can be prepared now but `entrykit capture` cannot write to it yet.
+4. If `obsidian` comes up, say clearly that it is not a released backend and recommend `local_markdown` with `output_dir` inside the user's vault as the current path.
+5. If the user asked for local persistence but no local backend is configured yet, recommend `local_markdown` first and guide them to set `backends.local_markdown.output_dir`.
 
 Do not ask the user to paste secrets into chat by default when a local-file path would work. If direct paste is offered, label the local-file path as the recommended option and attach a warning to the paste-in-chat option.
 If you present options, keep the numbering stable and accept a number-only reply.
@@ -192,24 +197,30 @@ If local execution is available, prefer the supporting CLI for config work:
 3. If the user says "总结" or asks for a recap without naming a backend, follow `default_output`.
 4. If the user says "保存", "存下来", "归档", "记下来", or another clearly persistent intent, do the actual save when the resolved target is a configured writable backend. Do not stop at merely preparing JSON or Markdown for that backend.
 5. If the user expresses clear persistence intent but resolution lands on `screen`, do not treat `screen` as the final target. Ask a short follow-up that moves toward a persistent backend or setup path.
-6. Ask a follow-up only when the target is genuinely ambiguous, such as:
+6. If that persistence intent is local rather than cloud-specific, prefer `local_markdown` as the first suggested persistent path.
+7. Ask a follow-up only when the target is genuinely ambiguous, such as:
    - the user explicitly contrasts screen-only output with persistence
    - the user asks to save but the resolved target is `screen`
    - the user asks to save but both the explicit request and `default_output` are absent or invalid
-7. If the follow-up is needed because persistence intent conflicts with `screen`, offer backend setup or backend choice instead of immediately producing a screen-only recap.
-8. If the user names `notion`, use the full capture-and-write workflow.
-9. If the user names `local_markdown`, use the full capture-and-write workflow.
-10. If the user names `obsidian`, say clearly that the writer is not implemented yet. Offer either:
-   - configure the obsidian path now for later
-   - or save this turn to `local_markdown` or `notion`
-11. If the current tool exposes runtime metadata through a command such as `/status`, inspect it before capturing and reuse any explicitly visible metadata such as model name, exact model identifier, or session id.
-12. Default to the full current conversation as the capture scope. Narrow the scope only when the user explicitly asks to capture a subsection, a recent segment, or a single topic.
-13. Extract the durable outcomes of the conversation:
+8. If the follow-up is needed because persistence intent conflicts with `screen`, offer backend setup or backend choice instead of immediately producing a screen-only recap.
+9. When the user wants the note stored locally and no stronger explicit override exists, treat `local_markdown` as the preferred persistent target.
+10. If the user explicitly asks to save inside the current project or its documentation, treat that as a repository-local artifact request rather than a frederica home-directory write.
+11. For repository-local artifact requests, prefer a docs path such as `docs/frederica/` instead of writing into the repository root.
+12. Do not treat a generic request to save "locally" as permission to write into the current repository. Repository-local writes require explicit project wording.
+13. If the user names `notion`, use the full capture-and-write workflow.
+14. If the user names `local_markdown`, use the full capture-and-write workflow.
+15. If the user names `obsidian`, say clearly that it is not a released backend. Default to saving this turn through `local_markdown`, ideally with `output_dir` inside the user's vault when they use Obsidian.
+16. If the user asks for a local Markdown file as the final deliverable, the default final artifact must be a single `.md` note, not a standalone `.json` payload and not a `.json` plus `.md` pair.
+17. For that single-file local Markdown artifact, use YAML front matter for the `KnowledgeEntry` metadata and place the human-readable note body in the same file underneath the front matter.
+18. Do not treat a raw `KnowledgeEntry` JSON file as the final user-facing deliverable unless the user explicitly asks for JSON or an intermediate capture payload.
+19. If the current tool exposes runtime metadata through a command such as `/status`, inspect it before capturing and reuse any explicitly visible metadata such as model name, exact model identifier, or session id.
+20. Default to the full current conversation as the capture scope. Narrow the scope only when the user explicitly asks to capture a subsection, a recent segment, or a single topic.
+21. Extract the durable outcomes of the conversation:
    - What happened
    - What mattered
    - What is reusable later
-14. Build a `KnowledgeEntry` JSON object that matches [`references/schema.md`](references/schema.md).
-15. Keep the database-facing fields concise and searchable:
+22. Build a `KnowledgeEntry` JSON object that matches [`references/schema.md`](references/schema.md).
+23. Keep the database-facing fields concise and searchable:
    - `schema_version`
    - `entry_id`
    - `title`
@@ -271,15 +282,63 @@ If local execution is available, prefer the supporting CLI for config work:
 37. Treat mojibake such as `鎺掓煡浜` or `骞剁‘璁や簡` as an encoding failure rather than a content failure. If it appears, retry with a UTF-8 file-based flow instead of trusting the current terminal pipeline.
 38. If local execution is needed from the repo checkout, prefer `PYTHONPATH=src python3 -m entrykit.cli ...`. If a reusable local install is needed, prefer a virtualenv rather than installing into a system-managed Python. Do not assume a bare `python` command exists, especially on macOS.
 
+## Report Workflow
+
+Use this workflow when the user wants to read back or summarize notes that already exist in the frederica store, for example:
+
+- "用 frederica 看一下最近都做了什么"
+- "最近两周都做了些什么项目？"
+- "make-frederica 现在进行得如何了"
+
+Treat these as note-reading requests rather than capture requests.
+
+### Intent boundary
+
+- If the user wants to archive the current conversation, use the capture workflow.
+- If the user wants a summary of existing notes, use the report workflow.
+- If both intents are present, handle the read/report request first only when the user clearly asks about already-saved notes. Otherwise prefer capture for the current conversation.
+
+### Preferred command support
+
+If local execution is available, prefer the supporting CLI for report work:
+
+- `entrykit report --query "总结本周工作"`
+- `entrykit report --query "最近两周都做了些什么项目？"`
+- `entrykit report --query "make-frederica 现在进行得如何了"`
+- `entrykit report --query "make-frederica 有什么阻塞和下一步" --plan-only`
+- `entrykit report --query "最近两周都做了些什么项目？" --planner llm --plan-only`
+
+### Interaction rules
+
+1. Treat report as a read-only workflow. Do not write, modify, or re-capture notes unless the user separately asks for capture or persistence.
+2. Prefer the user's natural-language request as the source of truth and let `entrykit report --query ...` derive a normalized query schema.
+3. If `OPENAI_API_KEY` is available, `entrykit report` may use the LLM planner automatically. Use `--planner heuristic` only when a deterministic local fallback is preferred, and use `--planner llm` when planner behavior itself needs to be inspected.
+4. If the user names a project explicitly, preserve that project filter.
+5. If the user includes a relative time phrase such as "本周", "最近两周", or "最近 7 天", preserve that constraint in the derived query rather than silently dropping it.
+6. If the user asks a question about saved notes and local execution is available, prefer `entrykit report` over manually browsing or freehand summarization.
+7. If `entrykit report --query ... --plan-only` is useful for debugging or disambiguation, inspect the derived plan before the live read.
+8. If the report path depends on Notion and local configuration is missing, say clearly that online note retrieval is unavailable from this environment. Do not pretend to have read the notes.
+9. If the current environment cannot run `entrykit`, say that the skill can describe the intended report flow but cannot perform the live read here.
+10. Keep report output grounded in retrieved notes. Do not invent work items that are not supported by the returned report.
+11. When useful, preserve source titles, dates, and project names in the final answer so the user can trace the summary back to concrete notes.
+12. When the user's question asks about specific facets such as blockers, risks, decisions, actions, or next steps, preserve that narrower scope. Do not widen a blocker-only question into a generic recap.
+13. Prefer a normalized query schema over a fixed report template. The execution contract should be the structured query, not a hard-coded weekly or project-status report kind.
+14. Keep answers grounded in retrieved notes and include source titles and dates when useful for traceability.
+
 ## Output Rules
 
 - Return JSON only when the user asked for a structured capture payload.
+- For report requests, prefer returning the rendered report result rather than paraphrasing it into a looser freeform answer unless the user asks for a rewrite.
 - If the user invoked `frederica`, do not treat screen-only prose as the default when a configured writable backend is already available.
 - If the user expressed clear persistence intent, do not let `screen` remain the final target unless the user explicitly accepts screen-only output after the follow-up.
 - If the user expressed clear persistence intent and the target backend is unambiguous, perform the save instead of only preparing a capture payload.
 - If a save just succeeded to a persistent backend and `default_output` is still `screen`, ask whether that backend should become the default for future plain “总结” requests. Do not switch it automatically.
 - If the user is choosing a first persistent backend, prefer offering `notion` and `local_markdown` before mentioning `obsidian`.
-- If the user explicitly asks for `obsidian`, be clear that config can be prepared now but direct capture writing is not implemented yet.
+- If the user explicitly asks for `obsidian`, be clear that it is a future backend and that the current recommended path is `local_markdown`, optionally pointed at a vault folder.
+- If the user explicitly asks to save in the current project or its docs, prefer a repository-local docs path such as `docs/frederica/` instead of the frederica home directory.
+- Do not treat a generic request to save "locally" as a repository-local write.
+- If the user asks for a local Markdown file, prefer a single readable `.md` note with front matter plus body over any split artifact design.
+- Do not deliver both Notion persistence and a local Markdown file in the same turn unless the user explicitly asks for both.
 - Prefer a short, concrete `title`.
 - Use `tool_version` for the visible tool or client version when it is explicitly exposed, such as `v0.111.0`. Leave it empty instead of guessing.
 - Use `model` for the visible model name exactly as the tool shows it, such as `gpt-5.4`, `Claude Sonnet 4.5`, or `Gemini 2.5 Pro`. Leave it empty instead of guessing.
@@ -310,6 +369,7 @@ If local execution is available, prefer the supporting CLI for config work:
 - Keep enough context in `body_markdown` that the entry still makes sense weeks later.
 - Default to concise-but-complete coverage. If the user explicitly asks for a detailed, exhaustive, or step-by-step recap, preserve the full sequence instead of compressing aggressively.
 - When running `entrykit` from Windows terminals, preserve UTF-8 end to end for any non-ASCII content. Prefer UTF-8 files over shell pipes for Chinese or other non-ASCII text.
+- For report requests, preserve the user's requested grouping and time range when they are explicit. Do not silently widen from a project-specific request to an all-project summary.
 
 ## Body Guidance
 
@@ -335,6 +395,9 @@ If local execution is available, prefer the supporting CLI for config work:
 - If you offer setup options, number them and accept a number-only reply.
 - If the user chooses to paste sensitive config, collect one field at a time.
 - If the user asked to save but `default_output` is `screen`, do not quietly satisfy the request with a screen-only recap. Ask a short follow-up that moves toward a persistent backend or a setup step.
+- If the user asked to save locally but `default_output` is `screen`, prefer offering `local_markdown` setup before introducing other persistent targets.
+- If the user asked to save in the current project, do not silently reroute that note into `~/.frederica`. Keep repository-local wording and frederica-home storage distinct.
+- If the user asked for a local Markdown note, do not stop at a machine-oriented capture payload. The final deliverable should still be the single `.md` note unless the user explicitly requests the payload instead.
 - If the user wants persistence but does not specify a destination, ask only when the target cannot be resolved from the configured backends.
 - If the requested persistence backend is planned but not yet supported, say that clearly and provide the best intermediate artifact you can produce now.
 - If obsolete legacy config files such as `~/.config/entrykit/env.sh` still exist, explain that frederica no longer uses them and offer to delete them.
@@ -396,4 +459,5 @@ Before returning the final JSON, check these points:
 
 - Read [`examples/coding-session.md`](examples/coding-session.md) for a sample source conversation and the kind of material worth preserving.
 - Read [`examples/coding-session.json`](examples/coding-session.json) for a complete `KnowledgeEntry` payload that can be sent to `entrykit capture`.
+- Read [`examples/local-markdown-note.md`](examples/local-markdown-note.md) for the expected shape of a user-facing local Markdown note with front matter and body in one file.
 - Read [`evals/evals.json`](evals/evals.json) for a starter evaluation set covering save intent, language matching, and block-budget discipline.

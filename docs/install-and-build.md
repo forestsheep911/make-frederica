@@ -124,6 +124,31 @@ PYTHONPATH=src python3 -m entrykit.cli capture --input captured.json
 Avoid telling the agent to run a bare `python` command unless you have already verified that it exists on that machine.
 On Windows, avoid assuming `py` works just because `python` works. They use different discovery logic and can diverge inside desktop-app sandboxes or other controlled execution environments.
 
+## Local Markdown setup
+
+`local_markdown` is the current released local persistent backend for `frederica`.
+
+Configure it with:
+
+```bash
+entrykit config set-default local_markdown
+entrykit config set-local-markdown --enable --output-dir ~/notes/frederica
+```
+
+On Windows:
+
+```powershell
+entrykit config set-default local_markdown
+entrykit config set-local-markdown --enable --output-dir D:\notes\frederica
+```
+
+This path can be either:
+
+- a normal local notes directory
+- a folder inside an Obsidian vault
+
+If you use Obsidian today, the recommended path is to point `local_markdown.output_dir` at a folder inside your vault. `entrykit` will write normal Markdown files there, and Obsidian can use them directly without a dedicated Obsidian backend.
+
 ## Current boundary
 
 The built binary is machine-specific. If you want to share it with someone else, build it on the target platform or distribute the Python package instead.

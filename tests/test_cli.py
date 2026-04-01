@@ -4,6 +4,7 @@ import io
 import json
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,6 +16,7 @@ from entrykit.cli import (
     cmd_config,
     cmd_doctor,
     cmd_inspect_notion,
+    cmd_report,
     config_view,
     decode_utf8,
     doctor_result,
@@ -23,6 +25,7 @@ from entrykit.cli import (
     read_input,
     read_text_file,
 )
+from entrykit.reporting import _coerce_llm_plan
 
 
 class CliEncodingTests(unittest.TestCase):
@@ -164,6 +167,103 @@ class CliEncodingTests(unittest.TestCase):
 
         self.assertEqual(code, 0)
         load_settings.assert_called_once_with(Path.home() / ".frederica" / "config" / ".env")
+
+    def test_report_parser_defaults_to_auto_planner(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["report", "--query", "最近两周都做了些什么项目？"])
+        self.assertEqual(args.planner, "auto")
+        self.assertIsNone(args.planner_model)
+
+    def test_cmd_report_plan_only_auto_falls_back_to_heuristic(self) -> None:
+        args = type(
+            "Args",
+            (),
+            {
+                "limit": 20,
+                "env_file": None,
+                "source": "notion",
+                "query": "最近两周都做了些什么项目？",
+                "start_date": None,
+                "end_date": None,
+                "project": None,
+                "plan_only": True,
+                "json": False,
+                "planner": "auto",
+                "planner_model": "gpt-test",
+            },
+        )()
+        fake_settings = type("Settings", (), {"notion_token": "token", "notion_database_id": "db"})()
+        schema_snapshot = {"fields": {"Project": {"type": "rich_text"}}}
+
+        with patch("entrykit.cli.Settings.load", return_value=fake_settings):
+            with patch("entrykit.cli.NotionClient"):
+                with patch("entrykit.cli.resolve_schema_snapshot", return_value=schema_snapshot):
+                    with patch("entrykit.cli.llm_planner_available", return_value=True):
+                        with patch(
+                            "entrykit.cli.plan_report_query_with_llm",
+                            side_effect=ValueError("LLM planner request failed: boom"),
+                        ):
+                            with patch("sys.stdout", new=io.StringIO()) as stdout:
+                                code = cmd_report(args)
+
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["planner"]["requested_mode"], "auto")
+        self.assertEqual(payload["planner"]["effective_mode"], "heuristic")
+        self.assertIn("fallback_reason", payload["planner"])
+        self.assertEqual(payload["query"]["group_by"], "project")
+
+    def test_cmd_report_plan_only_llm_uses_requested_model(self) -> None:
+        args = type(
+            "Args",
+            (),
+            {
+                "limit": 10,
+                "env_file": None,
+                "source": "notion",
+                "query": "make-frederica 有什么阻塞和下一步",
+                "start_date": None,
+                "end_date": None,
+                "project": None,
+                "plan_only": True,
+                "json": False,
+                "planner": "llm",
+                "planner_model": "gpt-test",
+            },
+        )()
+        fake_settings = type("Settings", (), {"notion_token": "token", "notion_database_id": "db"})()
+        schema_snapshot = {"fields": {"Project": {"type": "rich_text"}}, "candidates": {"Project": ["make-frederica"]}}
+
+        with patch("entrykit.cli.Settings.load", return_value=fake_settings):
+            with patch("entrykit.cli.NotionClient"):
+                with patch("entrykit.cli.resolve_schema_snapshot", return_value=schema_snapshot):
+                    with patch(
+                        "entrykit.cli.plan_report_query_with_llm",
+                        side_effect=lambda *call_args, **call_kwargs: _coerce_llm_plan(
+                            {
+                                "scope": "project",
+                                "target": "make-frederica",
+                                "start_date": None,
+                                "end_date": None,
+                                "relative_days": 14,
+                                "group_by": "none",
+                                "focus_terms": ["blockers", "next_steps"],
+                                "include_body": True,
+                                "limit": 10,
+                            },
+                            question=call_args[0],
+                            today=date(2026, 3, 27),
+                            default_limit=10,
+                        ),
+                    ):
+                        with patch("sys.stdout", new=io.StringIO()) as stdout:
+                            code = cmd_report(args)
+
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["planner"]["effective_mode"], "llm")
+        self.assertEqual(payload["planner"]["model"], "gpt-test")
+        self.assertEqual(payload["query"]["target"], "make-frederica")
 
     def test_doctor_requires_ready_default_backend(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -896,7 +996,7 @@ class CliEncodingTests(unittest.TestCase):
             self.assertEqual(payload["entry"]["title"], "Override To Screen")
             self.assertFalse(output_dir.exists())
 
-    def test_cmd_capture_obsidian_reports_actionable_message_when_enabled(self) -> None:
+    def test_cmd_capture_obsidian_reports_released_backend_message_when_enabled(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             home = Path(tmpdir)
             targets_path = home / ".frederica" / "config" / "targets.json"
@@ -952,10 +1052,10 @@ class CliEncodingTests(unittest.TestCase):
 
             with patch.dict("os.environ", {}, clear=True):
                 with patch("pathlib.Path.home", return_value=home):
-                    with self.assertRaisesRegex(ValueError, "use `notion` or `local_markdown`"):
+                    with self.assertRaisesRegex(ValueError, "not yet released as a supported backend"):
                         cmd_capture(args)
 
-    def test_cmd_capture_explicit_obsidian_dry_run_reports_actionable_message(self) -> None:
+    def test_cmd_capture_explicit_obsidian_dry_run_reports_local_markdown_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             home = Path(tmpdir)
             input_path = home / "captured.json"
@@ -994,7 +1094,7 @@ class CliEncodingTests(unittest.TestCase):
 
             with patch.dict("os.environ", {}, clear=True):
                 with patch("pathlib.Path.home", return_value=home):
-                    with self.assertRaisesRegex(ValueError, "not enabled"):
+                    with self.assertRaisesRegex(ValueError, "configure `local_markdown`"):
                         cmd_capture(args)
 
 

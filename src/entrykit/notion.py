@@ -291,6 +291,23 @@ class NotionClient:
             payload["start_cursor"] = start_cursor
         return self._request("POST", f"/databases/{database_id}/query", payload)
 
+    def list_block_children(self, block_id: str, start_cursor: str | None = None) -> dict[str, Any]:
+        path = f"/blocks/{block_id}/children?page_size=100"
+        if start_cursor:
+            path += f"&start_cursor={start_cursor}"
+        return self._request("GET", path)
+
+    def list_all_block_children(self, block_id: str) -> list[dict[str, Any]]:
+        blocks: list[dict[str, Any]] = []
+        cursor: str | None = None
+        while True:
+            response = self.list_block_children(block_id, start_cursor=cursor)
+            blocks.extend(response.get("results", []))
+            if not response.get("has_more"):
+                break
+            cursor = response.get("next_cursor")
+        return blocks
+
     def update_page_properties(self, page_id: str, properties: dict[str, Any]) -> dict[str, Any]:
         payload = {"properties": properties}
         return self._request("PATCH", f"/pages/{page_id}", payload)

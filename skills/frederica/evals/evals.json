@@ -88,9 +88,60 @@
     {
       "id": 13,
       "prompt": "我想用 frederica 保存到 obsidian。若还不能直接写入，也请把该怎么配置和这次可替代的保存方式说清楚。",
-      "expected_output": "Skill should say clearly that direct obsidian writing is not implemented yet, offer to prepare obsidian config now, and suggest notion or local_markdown as the writable alternatives for this turn.",
+      "expected_output": "Skill should say clearly that obsidian is not a released backend, recommend local_markdown as the current path, and mention that pointing output_dir at a vault folder is the right setup for Obsidian users today.",
       "files": [],
       "covers": ["obsidian_planned_backend"]
+    },
+    {
+      "id": 14,
+      "prompt": "我平时用 Obsidian，但这次只想把 frederica 的结果稳妥地落到本地，不需要任何 Obsidian 专属功能。请直接给我正确方案。",
+      "expected_output": "Skill should route the user to local_markdown rather than presenting obsidian as a current backend, and it should explain that a vault folder can be used as the local_markdown output directory.",
+      "files": [],
+      "covers": ["obsidian_planned_backend"]
+    },
+    {
+      "id": 15,
+      "prompt": "用 frederica 把这次对话存到本地。现在没有 targets.json，所以 default_output 实际上还是 screen。我不想只看聊天里的总结，我要一个真正落盘的本地结果。",
+      "expected_output": "Skill should not end with screen output. It should guide the user toward local_markdown as the preferred local persistent backend and, if needed, ask them to configure local_markdown.output_dir.",
+      "files": [],
+      "covers": ["save_intent_with_screen_default", "config_local_markdown"]
+    },
+    {
+      "id": 16,
+      "prompt": "用 frederica 把这次总结存在本项目的文档中，不要放到全局 frederica 目录里。优先放在 docs 下面，别直接写到仓库根目录。",
+      "expected_output": "Skill should treat this as a repository-local artifact request, prefer a docs path such as docs/frederica/, and keep it distinct from the normal local_markdown output_dir flow.",
+      "files": [],
+      "covers": ["config_local_markdown"]
+    },
+    {
+      "id": 17,
+      "prompt": "用 frederica 总结最近一次 commit，并写到 ~/Documents。我要的是一个本地 Markdown 笔记文件，不要 JSON 中间产物，也不要顺手再写 notion。",
+      "expected_output": "Skill should resolve this turn to a single local Markdown note as the final deliverable, avoid dual-writing to notion, and avoid splitting the result into separate JSON and Markdown files.",
+      "files": [
+        "examples/local-markdown-note.md"
+      ],
+      "covers": ["save_intent_with_screen_default", "config_local_markdown"]
+    },
+    {
+      "id": 18,
+      "prompt": "用 frederica 总结本周工作，按项目归类。我说的是已经存进笔记库里的内容，不是要你总结当前聊天。",
+      "expected_output": "Skill should enter the report workflow instead of capture, use the live note-reading path, and answer the question against saved notes with source-grounded output.",
+      "files": [],
+      "covers": ["note_reading"]
+    },
+    {
+      "id": 19,
+      "prompt": "用 frederica 看一下最近两周都做了些什么项目。如果支持的话，先按自然语言请求生成查询，再去读在线笔记。",
+      "expected_output": "Skill should treat the request as a note-reading question, derive a structured query from the natural-language ask, and read live notes instead of falling back to capture.",
+      "files": [],
+      "covers": ["note_reading"]
+    },
+    {
+      "id": 20,
+      "prompt": "用 frederica 看一下 make-frederica 现在有什么阻塞和下一步，不用给我完整周报。",
+      "expected_output": "Skill should enter the report workflow, keep the request scoped to the named project, derive a query that preserves the narrower blocker and next-step scope, and avoid widening it into a generic recap.",
+      "files": [],
+      "covers": ["note_reading"]
     }
   ]
 }

@@ -88,3 +88,24 @@ The generated wrappers resolve Python in this order:
 - `ENTRYKIT_PYTHON_BIN`
 - `python`
 - `py -3`
+
+## Local Markdown backend after install
+
+After installation, the current recommended local persistent backend is `local_markdown`.
+
+Example setup:
+
+```bash
+entrykit config set-default local_markdown
+entrykit config set-local-markdown --enable --output-dir ~/notes/frederica
+```
+
+If you use Obsidian without Obsidian Sync or a dedicated backend, point `output_dir` to a folder inside your local vault instead of a generic notes directory.
+
+Example:
+
+```bash
+entrykit config set-local-markdown --enable --output-dir ~/Documents/MyVault/Frederica
+```
+
+That gives Obsidian users a working local flow today while `obsidian` remains a future backend enhancement.

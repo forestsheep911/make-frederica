@@ -13,12 +13,16 @@ For machine-level use, keep the runtime under `~/.frederica` instead of the curr
 
 ### 1. Native workflow in Codex
 
-Use the local skill to shape the summary, then write the result to Notion:
+Use the local skill to shape the summary, then write the result to the configured backend:
 
 ```bash
 entrykit doctor
 entrykit capture --input examples/coding-session.json
 ```
+
+For local persistent storage, prefer `local_markdown`.
+
+If you use Obsidian, point `local_markdown.output_dir` at a folder inside your vault rather than waiting for a dedicated Obsidian backend.
 
 ### 2. Use the same skill in other assistants
 
@@ -31,6 +35,19 @@ Ask a follow-up only when the target is genuinely ambiguous, for example:
 - screen-only summary in the current chat
 - write the result to Notion
 - prepare a local artifact for another backend such as Markdown or a future Obsidian flow
+
+If the user asks to save to Obsidian, the current recommended path is `local_markdown` with `output_dir` pointing at a folder inside the user's vault.
+
+Do not present `obsidian` as a currently released backend.
+
+Only discuss a future dedicated Obsidian backend when the user explicitly asks for Obsidian-specific capabilities beyond plain Markdown storage, such as vault-aware automation, wikilinks, Dataview-oriented projection, or open-in-Obsidian flows.
+
+When the user mentions Obsidian:
+
+- If they want persistent local storage, route to `local_markdown`.
+- If they already have a vault, suggest setting `output_dir` to a folder in that vault.
+- If they do not have Obsidian installed yet, still offer `local_markdown` as the durable local format.
+- Only describe `obsidian` as a future backend, not a current setup target.
 
 If the user says "save", "archive", or another clearly persistent intent and the resolved backend is writable, the assistant should perform the actual write instead of stopping at a prepared payload.
 

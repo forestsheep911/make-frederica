@@ -33,6 +33,22 @@ from entrykit.notion import (
     validate_block_limit,
 )
 from entrykit.prompts import render_capture_prompt
+from entrykit.reporting import (
+    build_report_from_plan,
+    fetch_notion_report_notes,
+    llm_planner_available,
+    llm_planner_model,
+    notion_schema_cache_path,
+    plan_report_query,
+    plan_report_query_with_llm,
+    planner_schema_summary,
+    plan_to_dict,
+    plan_to_query,
+    query_to_dict,
+    render_report,
+    resolve_report_range,
+    resolve_schema_snapshot,
+)
 from entrykit.reviewing import (
     format_review_result,
     parse_review_result,
@@ -83,17 +99,10 @@ def read_text_file(path: Path) -> str:
 
 
 def obsidian_capture_error(targets: TargetSettings) -> ValueError:
-    folder = targets.obsidian.folder or "(root)"
-    if targets.obsidian.enabled:
-        details = (
-            f"Configured vault: {targets.obsidian.vault_path or 'not set'}; "
-            f"folder: {folder}."
-        )
-    else:
-        details = "The obsidian backend is not enabled in ~/.frederica/config/targets.json."
     return ValueError(
-        "Output target `obsidian` is not implemented for capture yet. "
-        f"{details} Configure the path now if you want, then use `notion` or `local_markdown` for this capture."
+        "Output target `obsidian` is not yet released as a supported backend. "
+        "For Obsidian use today, configure `local_markdown` and point `output_dir` "
+        "to a folder inside your vault."
     )
 
 
@@ -272,6 +281,65 @@ def build_parser() -> argparse.ArgumentParser:
         "--include-example",
         action="store_true",
         help="Append a complete JSON example after the schema.",
+    )
+
+    report = subparsers.add_parser(
+        "report",
+        help="Read notes from the configured backend and answer a natural-language question.",
+    )
+    report.add_argument(
+        "--source",
+        choices=["notion"],
+        default="notion",
+        help="Read backend for this report run.",
+    )
+    report.add_argument(
+        "--query",
+        required=True,
+        help="Natural-language note-reading request such as '最近两周都做了些什么项目？'.",
+    )
+    report.add_argument(
+        "--start-date",
+        help="Inclusive ISO date override such as 2026-03-23.",
+    )
+    report.add_argument(
+        "--end-date",
+        help="Inclusive ISO date override such as 2026-03-29.",
+    )
+    report.add_argument(
+        "--project",
+        help="Optional exact project filter.",
+    )
+    report.add_argument(
+        "--limit",
+        type=int,
+        default=50,
+        help="Maximum number of notes to include after filtering.",
+    )
+    report.add_argument(
+        "--env-file",
+        type=Path,
+        help="Optional explicit .env path when the source backend is notion.",
+    )
+    report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the report payload as JSON.",
+    )
+    report.add_argument(
+        "--plan-only",
+        action="store_true",
+        help="Only print the derived report plan without reading notes.",
+    )
+    report.add_argument(
+        "--planner",
+        choices=["auto", "heuristic", "llm"],
+        default="auto",
+        help="Query planner mode. `auto` prefers the OpenAI planner when configured, otherwise falls back to heuristics.",
+    )
+    report.add_argument(
+        "--planner-model",
+        help="Optional planner model override when --planner uses the OpenAI planner.",
     )
 
     lint = subparsers.add_parser(
@@ -854,6 +922,123 @@ def cmd_render_prompt(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_report(args: argparse.Namespace) -> int:
+    if args.limit <= 0:
+        raise ValueError("--limit must be greater than 0.")
+
+    targets = TargetSettings.load()
+    env_path = args.env_file or targets.notion.env_file or default_env_path()
+    source = args.source
+    if source != "notion":
+        raise ValueError(f"Report source `{source}` is not implemented.")
+
+    settings = None
+    client = None
+    schema_snapshot = None
+    try:
+        settings = Settings.load(env_path)
+        client = NotionClient(settings.notion_token)
+        schema_snapshot = resolve_schema_snapshot(
+            client,
+            settings.notion_database_id,
+            cache_path=notion_schema_cache_path(),
+        )
+    except ValueError:
+        if not args.plan_only:
+            raise
+
+    planner_view = planner_schema_summary(schema_snapshot)
+    planner_info: dict[str, object] = {
+        "requested_mode": args.planner,
+        "effective_mode": "heuristic",
+    }
+    plan: object
+    if args.planner == "heuristic":
+        plan = plan_report_query(args.query, default_limit=args.limit, schema_snapshot=schema_snapshot)
+    elif args.planner == "llm":
+        plan = plan_report_query_with_llm(
+            args.query,
+            default_limit=args.limit,
+            schema_snapshot=schema_snapshot,
+            planner_schema=planner_view,
+            model=args.planner_model,
+        )
+        planner_info["effective_mode"] = "llm"
+        planner_info["model"] = args.planner_model or llm_planner_model()
+    else:
+        if llm_planner_available():
+            try:
+                plan = plan_report_query_with_llm(
+                    args.query,
+                    default_limit=args.limit,
+                    schema_snapshot=schema_snapshot,
+                    planner_schema=planner_view,
+                    model=args.planner_model,
+                )
+                planner_info["effective_mode"] = "llm"
+                planner_info["model"] = args.planner_model or llm_planner_model()
+            except ValueError as exc:
+                plan = plan_report_query(args.query, default_limit=args.limit, schema_snapshot=schema_snapshot)
+                planner_info["fallback_reason"] = str(exc)
+        else:
+            plan = plan_report_query(args.query, default_limit=args.limit, schema_snapshot=schema_snapshot)
+
+    query_schema = plan_to_query(plan)
+
+    if args.start_date or args.end_date:
+        start, end = resolve_report_range(
+            start_date=args.start_date,
+            end_date=args.end_date,
+        )
+    else:
+        start, end = resolve_report_range(
+            start_date=plan.start_date,
+            end_date=plan.end_date,
+        )
+
+    effective_project = args.project or plan.target
+
+    if args.plan_only:
+        query_payload = query_to_dict(query_schema)
+        query_payload["target"] = effective_project
+        query_payload["start_date"] = start.isoformat()
+        query_payload["end_date"] = end.isoformat()
+        print(
+            json.dumps(
+                {
+                    "plan": plan_to_dict(plan),
+                    "query": query_payload,
+                    "planner": planner_info,
+                    "schema": schema_snapshot,
+                    "planner_schema": planner_view,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return 0
+
+    assert settings is not None
+    assert client is not None
+    notes = fetch_notion_report_notes(
+        client,
+        settings.notion_database_id,
+        start=start,
+        end=end,
+        project=effective_project,
+        include_body=True,
+        limit=args.limit,
+    )
+
+    payload = build_report_from_plan(plan, notes, start=start, end=end)
+
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        print(render_report(payload))
+    return 0
+
+
 def cmd_lint(args: argparse.Namespace) -> int:
     raw = read_input(args.input)
     entry = KnowledgeEntry.from_json(raw)
@@ -929,6 +1114,8 @@ def main() -> None:
             raise SystemExit(cmd_config(args))
         if args.command == "render-prompt":
             raise SystemExit(cmd_render_prompt(args))
+        if args.command == "report":
+            raise SystemExit(cmd_report(args))
         if args.command == "lint":
             raise SystemExit(cmd_lint(args))
         if args.command == "review":
