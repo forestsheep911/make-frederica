@@ -59,12 +59,25 @@ Default to the full current conversation unless the user explicitly asks to capt
 - `artifacts`: Optional list of concrete references such as `file:...`, `repo:...`, `cmd:...`, `url:...`, or `issue:...`.
 - `reusability_score`: Required integer from `0` to `100`.
 - `summary`: Required. One or two sentences suitable for Notion list views. Follow the dominant language of the conversation unless the user explicitly asks for another language.
+  Keep it browseable. Do not stuff detailed code, config, or diagrams into `summary`.
 - `decisions`: Optional list of explicit conclusions reached in the session.
 - `actions`: Optional list of follow-up steps or next actions.
 - `open_questions`: Optional list of unresolved issues.
 - `related_entries`: Optional list of related `entry_id` values or stable note keys.
 - `body_markdown`: Required. Markdown body written for the Notion page content. Follow the dominant language of the conversation unless the user explicitly asks for another language.
   Keep the rendered result under 100 Notion blocks. Prefer in-block newlines and merged paragraphs over one-line-per-block formatting.
+  The renderer also understands richer Notion-oriented conventions when they make the note more useful:
+  - `**text**`, `*text*`, `` `code` ``, and `~~text~~`
+  - `==text==` for highlight
+  - `{red|text}`, `{blue|text}`, `{green|text}`, `{yellow_background|text}` and the other Notion color names for explicit color annotations
+  - `[label](https://...)` for links
+  - fenced code blocks with an explicit language for code, config, commands, JSON, YAML, env files, and similar technical material
+  - fenced `mermaid` blocks when a compact diagram would preserve structure more clearly than prose
+  - `- [ ] task` and `- [x] task` for todo blocks
+  - `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, and `> [!ERROR]` for callouts
+  - `---` for divider blocks
+  - `:::toggle Title` ... `:::` for foldable detail sections
+  - Markdown tables for compact configuration, parameter, and comparison content
 
 ## Body guidelines
 
@@ -76,6 +89,18 @@ Default to the full current conversation unless the user explicitly asks to capt
 - Treat blank lines as costly because they often create extra Notion blocks.
 - Prefer a paragraph with internal line breaks when several short statements belong to the same idea.
 - Use lists only when the list shape adds meaning, not just to create visual separation.
+- When several details belong under one main point, prefer a parent list item with indented child bullets, notes, or code instead of a long flat list.
+- When future reuse depends on exact syntax, preserve the concrete code or config in fenced code blocks instead of paraphrasing it.
+- When the conversation contains a concrete implementation, command sequence, request payload, config fragment, or query worth reusing, include a representative snippet in `body_markdown`.
+- When control flow, architecture, dependency shape, or decision flow matters, prefer a small `mermaid` diagram over a long prose explanation.
+- Good `mermaid` cases are limited to a few patterns:
+  - architecture or component relationships
+  - step flow or branching decisions
+  - state transitions or lifecycle movement
+- Do not add `mermaid` just because the topic is technical. If a short paragraph, list, or table explains it faster, prefer that instead.
+- Keep diagrams compact. Prefer one small useful diagram over several decorative ones.
+- Use color deliberately for semantics, not decoration. A risk, status marker, or key decision can justify color; ordinary prose usually should not.
+- Notion does not support arbitrary font-size control here. Use heading levels, callouts, and block choice to create hierarchy.
 - Preserve the context needed to make the notes useful later.
 - Capture reusable lessons when they exist.
 - Add steps, risks, conclusions, or actions only when they are relevant.

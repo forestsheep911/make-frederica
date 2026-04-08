@@ -16,6 +16,12 @@ class PromptTests(unittest.TestCase):
         self.assertIn("2026-03-08T16:20:00+08:00", prompt)
         self.assertIn("Low-block body example:", prompt)
         self.assertIn("Prefer one denser paragraph for one idea.", prompt)
+        self.assertIn("`==text==` for Notion-style yellow highlight", prompt)
+        self.assertIn("`> [!NOTE] ...`, `> [!TIP] ...`, `> [!IMPORTANT] ...`, `> [!WARNING] ...`, or `> [!ERROR] ...` for callouts", prompt)
+        self.assertIn("preserve a representative snippet in `body_markdown`", prompt)
+        self.assertIn("include a fenced `mermaid` block", prompt)
+        self.assertIn("architecture or component relationships", prompt)
+        self.assertIn("Do not add a diagram just because the note is technical.", prompt)
 
     def test_render_prompt_with_example(self) -> None:
         prompt = render_capture_prompt("gemini-cli", include_example=True)

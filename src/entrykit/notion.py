@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+import re
 from typing import Any
 from urllib import error, request
 
@@ -17,6 +18,164 @@ SCHEMA_RENAMES = {
     "Model Version": "Model",
 }
 MODEL_ALIASES = ["Model Version", "Model Label", "Model ID", "Model 1"]
+NOTION_COLORS = {
+    "default",
+    "gray",
+    "brown",
+    "orange",
+    "yellow",
+    "green",
+    "blue",
+    "purple",
+    "pink",
+    "red",
+    "gray_background",
+    "brown_background",
+    "orange_background",
+    "yellow_background",
+    "green_background",
+    "blue_background",
+    "purple_background",
+    "pink_background",
+    "red_background",
+}
+INLINE_TOKEN_RE = re.compile(
+    r"\[([^\]]+)\]\((https?://[^)\s]+)\)"
+    r"|\*\*([^*\n][\s\S]*?)\*\*"
+    r"|`([^`\n][\s\S]*?)`"
+    r"|~~([^~\n][\s\S]*?)~~"
+    r"|==([^=\n][\s\S]*?)=="
+    r"|\{([a-z_]+)\|([^{}]+)\}"
+    r"|\*([^*\n][^*\n]*?)\*"
+)
+TODO_RE = re.compile(r"^[-*]\s+\[( |x|X)\]\s+(.*)$")
+NUMBERED_LIST_RE = re.compile(r"^\d+\.\s+(.*)$")
+CALLOUT_RE = re.compile(r"^>\s*\[!([A-Za-z]+)\]\s*(.*)$")
+DIVIDER_RE = re.compile(r"^([-*_])\1{2,}$")
+TOGGLE_START_RE = re.compile(r"^:::(?:toggle|details)\s+(.*)$")
+TOGGLE_END_RE = re.compile(r"^:::$")
+TABLE_SEPARATOR_CELL_RE = re.compile(r"^:?-{3,}:?$")
+COLOR_ALIASES = {
+    "highlight": "yellow_background",
+    "yellow_bg": "yellow_background",
+    "red_bg": "red_background",
+    "green_bg": "green_background",
+    "blue_bg": "blue_background",
+    "gray_bg": "gray_background",
+}
+CALLOUT_STYLES = {
+    "NOTE": {"emoji": "📝", "color": "blue_background"},
+    "TIP": {"emoji": "💡", "color": "green_background"},
+    "IMPORTANT": {"emoji": "📌", "color": "yellow_background"},
+    "WARNING": {"emoji": "⚠️", "color": "orange_background"},
+    "ERROR": {"emoji": "🚨", "color": "red_background"},
+}
+NOTION_CODE_LANGUAGES = {
+    "plain text",
+    "abap",
+    "arduino",
+    "bash",
+    "basic",
+    "c",
+    "clojure",
+    "coffeescript",
+    "c++",
+    "c#",
+    "css",
+    "dart",
+    "diff",
+    "docker",
+    "elixir",
+    "elm",
+    "erlang",
+    "flow",
+    "fortran",
+    "f#",
+    "gherkin",
+    "glsl",
+    "go",
+    "graphql",
+    "groovy",
+    "haskell",
+    "html",
+    "java",
+    "javascript",
+    "json",
+    "julia",
+    "kotlin",
+    "latex",
+    "less",
+    "lisp",
+    "livescript",
+    "lua",
+    "makefile",
+    "markdown",
+    "markup",
+    "matlab",
+    "mermaid",
+    "nix",
+    "objective-c",
+    "ocaml",
+    "pascal",
+    "perl",
+    "php",
+    "powershell",
+    "prolog",
+    "protobuf",
+    "python",
+    "r",
+    "reason",
+    "ruby",
+    "rust",
+    "sass",
+    "scala",
+    "scheme",
+    "scss",
+    "shell",
+    "sql",
+    "swift",
+    "typescript",
+    "vb.net",
+    "verilog",
+    "vhdl",
+    "visual basic",
+    "webassembly",
+    "xml",
+    "yaml",
+    "java/c/c++/c#",
+}
+CODE_LANGUAGE_ALIASES = {
+    "": "plain text",
+    "text": "plain text",
+    "txt": "plain text",
+    "plaintext": "plain text",
+    "plain": "plain text",
+    "sh": "shell",
+    "shellscript": "shell",
+    "zsh": "shell",
+    "console": "shell",
+    "ps1": "powershell",
+    "pwsh": "powershell",
+    "yml": "yaml",
+    "md": "markdown",
+    "ts": "typescript",
+    "tsx": "typescript",
+    "js": "javascript",
+    "jsx": "javascript",
+    "py": "python",
+    "rb": "ruby",
+    "rs": "rust",
+    "cs": "c#",
+    "cpp": "c++",
+    "cxx": "c++",
+    "cc": "c++",
+    "psql": "sql",
+    "postgres": "sql",
+    "toml": "plain text",
+    "ini": "plain text",
+    "env": "plain text",
+    "conf": "plain text",
+}
 
 
 class NotionError(RuntimeError):
@@ -85,16 +244,94 @@ def chunk_text(text: str, limit: int = MAX_RICH_TEXT) -> list[str]:
     return chunks
 
 
+def _normalize_color(color: str | None) -> str:
+    candidate = (color or "").strip().lower()
+    if not candidate:
+        return "default"
+    candidate = COLOR_ALIASES.get(candidate, candidate)
+    return candidate if candidate in NOTION_COLORS else "default"
+
+
+def _make_text_part(
+    content: str,
+    *,
+    bold: bool = False,
+    italic: bool = False,
+    strikethrough: bool = False,
+    code: bool = False,
+    color: str = "default",
+    url: str | None = None,
+) -> dict[str, Any]:
+    part: dict[str, Any] = {
+        "type": "text",
+        "text": {
+            "content": content,
+        },
+        "annotations": {
+            "bold": bold,
+            "italic": italic,
+            "strikethrough": strikethrough,
+            "underline": False,
+            "code": code,
+            "color": _normalize_color(color),
+        },
+    }
+    if url:
+        part["text"]["link"] = {"url": url}
+    return part
+
+
+def _chunk_part(part: dict[str, Any]) -> list[dict[str, Any]]:
+    content = str(part.get("text", {}).get("content", ""))
+    if not content:
+        return []
+    annotations = dict(part.get("annotations", {}))
+    link = part.get("text", {}).get("link")
+    chunks: list[dict[str, Any]] = []
+    for piece in chunk_text(content):
+        text_payload: dict[str, Any] = {"content": piece}
+        if link:
+            text_payload["link"] = dict(link)
+        chunks.append(
+            {
+                "type": "text",
+                "text": text_payload,
+                "annotations": annotations,
+            }
+        )
+    return chunks
+
+
 def rich_text(text: str) -> list[dict[str, Any]]:
-    return [
-        {
-            "type": "text",
-            "text": {
-                "content": chunk,
-            },
-        }
-        for chunk in chunk_text(text)
-    ]
+    if not text:
+        return []
+    parts: list[dict[str, Any]] = []
+    cursor = 0
+    for match in INLINE_TOKEN_RE.finditer(text):
+        start, end = match.span()
+        if start > cursor:
+            parts.extend(_chunk_part(_make_text_part(text[cursor:start])))
+
+        if match.group(1) is not None and match.group(2) is not None:
+            parts.extend(_chunk_part(_make_text_part(match.group(1), url=match.group(2))))
+        elif match.group(3) is not None:
+            parts.extend(_chunk_part(_make_text_part(match.group(3), bold=True)))
+        elif match.group(4) is not None:
+            parts.extend(_chunk_part(_make_text_part(match.group(4), code=True)))
+        elif match.group(5) is not None:
+            parts.extend(_chunk_part(_make_text_part(match.group(5), strikethrough=True)))
+        elif match.group(6) is not None:
+            parts.extend(_chunk_part(_make_text_part(match.group(6), color="yellow_background")))
+        elif match.group(7) is not None and match.group(8) is not None:
+            parts.extend(_chunk_part(_make_text_part(match.group(8), color=match.group(7))))
+        elif match.group(9) is not None:
+            parts.extend(_chunk_part(_make_text_part(match.group(9), italic=True)))
+
+        cursor = end
+
+    if cursor < len(text):
+        parts.extend(_chunk_part(_make_text_part(text[cursor:])))
+    return parts
 
 
 def paragraph_block(text: str) -> dict[str, Any]:
@@ -118,23 +355,27 @@ def heading_block(level: int, text: str) -> dict[str, Any]:
     }
 
 
-def list_block(kind: str, text: str) -> dict[str, Any]:
+def list_block(kind: str, text: str, children: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "rich_text": rich_text(text),
+    }
+    if children:
+        payload["children"] = children
     return {
         "object": "block",
         "type": kind,
-        kind: {
-            "rich_text": rich_text(text),
-        },
+        kind: payload,
     }
 
 
 def code_block(text: str, language: str = "plain text") -> dict[str, Any]:
+    normalized_language = normalize_code_language(language)
     return {
         "object": "block",
         "type": "code",
         "code": {
-            "rich_text": rich_text(text),
-            "language": language,
+            "rich_text": [_make_text_part(chunk, code=True) for chunk in chunk_text(text)],
+            "language": normalized_language,
         },
     }
 
@@ -149,7 +390,148 @@ def quote_block(text: str) -> dict[str, Any]:
     }
 
 
-def markdown_to_blocks(markdown: str) -> list[dict[str, Any]]:
+def to_do_block(text: str, checked: bool, children: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "rich_text": rich_text(text),
+        "checked": checked,
+    }
+    if children:
+        payload["children"] = children
+    return {
+        "object": "block",
+        "type": "to_do",
+        "to_do": payload,
+    }
+
+
+def divider_block() -> dict[str, Any]:
+    return {
+        "object": "block",
+        "type": "divider",
+        "divider": {},
+    }
+
+
+def callout_block(text: str, kind: str) -> dict[str, Any]:
+    style = CALLOUT_STYLES.get(kind.upper(), CALLOUT_STYLES["NOTE"])
+    return {
+        "object": "block",
+        "type": "callout",
+        "callout": {
+            "rich_text": rich_text(text),
+            "icon": {"type": "emoji", "emoji": style["emoji"]},
+            "color": style["color"],
+        },
+    }
+
+
+def toggle_block(text: str, children: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    return {
+        "object": "block",
+        "type": "toggle",
+        "toggle": {
+            "rich_text": rich_text(text),
+            "children": children or [],
+        },
+    }
+
+
+def table_row_block(cells: list[str]) -> dict[str, Any]:
+    return {
+        "object": "block",
+        "type": "table_row",
+        "table_row": {
+            "cells": [rich_text(cell) for cell in cells],
+        },
+    }
+
+
+def table_block(rows: list[list[str]], has_column_header: bool) -> dict[str, Any]:
+    width = max((len(row) for row in rows), default=0)
+    normalized_rows = [row + [""] * (width - len(row)) for row in rows]
+    return {
+        "object": "block",
+        "type": "table",
+        "table": {
+            "table_width": width,
+            "has_column_header": has_column_header,
+            "has_row_header": False,
+            "children": [table_row_block(row) for row in normalized_rows],
+        },
+    }
+
+
+def normalize_code_language(language: str) -> str:
+    normalized = (language or "").strip().lower()
+    normalized = CODE_LANGUAGE_ALIASES.get(normalized, normalized)
+    if normalized in NOTION_CODE_LANGUAGES:
+        return normalized
+    return "plain text"
+
+
+def _line_indent(raw_line: str) -> int:
+    indent = 0
+    for char in raw_line:
+        if char == " ":
+            indent += 1
+        elif char == "\t":
+            indent += 4
+        else:
+            break
+    return indent
+
+
+def _strip_indent(raw_line: str, indent: int) -> str:
+    remaining = indent
+    index = 0
+    while index < len(raw_line) and remaining > 0:
+        if raw_line[index] == " ":
+            remaining -= 1
+        elif raw_line[index] == "\t":
+            remaining -= min(4, remaining)
+        else:
+            break
+        index += 1
+    return raw_line[index:]
+
+
+def _collect_indented_child_lines(lines: list[str], start: int, parent_indent: int) -> tuple[list[str], int]:
+    child_lines: list[str] = []
+    index = start
+    child_indent: int | None = None
+    while index < len(lines):
+        raw_line = lines[index]
+        stripped = raw_line.strip()
+        if stripped and TOGGLE_END_RE.match(stripped):
+            break
+        if not stripped:
+            child_lines.append("")
+            index += 1
+            continue
+        indent = _line_indent(raw_line)
+        if indent <= parent_indent:
+            break
+        if child_indent is None:
+            child_indent = indent
+        child_lines.append(_strip_indent(raw_line, child_indent))
+        index += 1
+    return child_lines, index
+
+
+def _split_table_row(line: str) -> list[str]:
+    trimmed = line.strip()
+    if not trimmed.startswith("|") or "|" not in trimmed[1:]:
+        return []
+    raw = trimmed[1:-1] if trimmed.endswith("|") else trimmed[1:]
+    return [cell.strip() for cell in raw.split("|")]
+
+
+def _is_table_separator(line: str) -> bool:
+    cells = _split_table_row(line)
+    return bool(cells) and all(TABLE_SEPARATOR_CELL_RE.match(cell) for cell in cells)
+
+
+def _parse_blocks(lines: list[str], start: int = 0, stop_on_toggle_end: bool = False) -> tuple[list[dict[str, Any]], int]:
     blocks: list[dict[str, Any]] = []
     paragraph_lines: list[str] = []
     code_lines: list[str] = []
@@ -172,7 +554,9 @@ def markdown_to_blocks(markdown: str) -> list[dict[str, Any]]:
         code_lines.clear()
         code_language = "plain text"
 
-    for raw_line in markdown.splitlines():
+    index = start
+    while index < len(lines):
+        raw_line = lines[index]
         line = raw_line.rstrip()
         stripped = line.strip()
 
@@ -184,14 +568,52 @@ def markdown_to_blocks(markdown: str) -> list[dict[str, Any]]:
             else:
                 in_code = True
                 code_language = stripped[3:].strip() or "plain text"
+            index += 1
             continue
 
         if in_code:
             code_lines.append(raw_line)
+            index += 1
             continue
+
+        if stop_on_toggle_end and TOGGLE_END_RE.match(stripped):
+            break
 
         if not stripped:
             flush_paragraph()
+            index += 1
+            continue
+
+        toggle_match = TOGGLE_START_RE.match(stripped)
+        if toggle_match:
+            flush_paragraph()
+            child_blocks, consumed_index = _parse_blocks(lines, index + 1, stop_on_toggle_end=True)
+            blocks.append(toggle_block(toggle_match.group(1).strip(), child_blocks))
+            index = consumed_index + 1
+            continue
+
+        table_cells = _split_table_row(stripped)
+        if table_cells:
+            flush_paragraph()
+            rows = [table_cells]
+            has_column_header = False
+            index += 1
+            if index < len(lines) and _is_table_separator(lines[index].strip()):
+                has_column_header = True
+                index += 1
+            while index < len(lines):
+                next_cells = _split_table_row(lines[index].strip())
+                if not next_cells:
+                    break
+                rows.append(next_cells)
+                index += 1
+            blocks.append(table_block(rows, has_column_header))
+            continue
+
+        if DIVIDER_RE.match(stripped):
+            flush_paragraph()
+            blocks.append(divider_block())
+            index += 1
             continue
 
         if stripped.startswith("#"):
@@ -200,6 +622,16 @@ def markdown_to_blocks(markdown: str) -> list[dict[str, Any]]:
             heading_text = stripped[level:].strip()
             if heading_text:
                 blocks.append(heading_block(level, heading_text))
+            index += 1
+            continue
+
+        callout_match = CALLOUT_RE.match(stripped)
+        if callout_match:
+            flush_paragraph()
+            callout_text = callout_match.group(2).strip()
+            if callout_text:
+                blocks.append(callout_block(callout_text, callout_match.group(1)))
+            index += 1
             continue
 
         if stripped.startswith(">"):
@@ -207,24 +639,52 @@ def markdown_to_blocks(markdown: str) -> list[dict[str, Any]]:
             quote_text = stripped[1:].strip()
             if quote_text:
                 blocks.append(quote_block(quote_text))
+            index += 1
+            continue
+
+        todo_match = TODO_RE.match(stripped)
+        if todo_match:
+            flush_paragraph()
+            child_lines, next_index = _collect_indented_child_lines(lines, index + 1, _line_indent(raw_line))
+            child_blocks = markdown_to_blocks("\n".join(child_lines)) if child_lines else []
+            blocks.append(
+                to_do_block(
+                    todo_match.group(2).strip(),
+                    checked=todo_match.group(1).lower() == "x",
+                    children=child_blocks,
+                )
+            )
+            index = next_index
             continue
 
         if stripped[:2] in {"- ", "* "}:
             flush_paragraph()
-            blocks.append(list_block("bulleted_list_item", stripped[2:].strip()))
+            child_lines, next_index = _collect_indented_child_lines(lines, index + 1, _line_indent(raw_line))
+            child_blocks = markdown_to_blocks("\n".join(child_lines)) if child_lines else []
+            blocks.append(list_block("bulleted_list_item", stripped[2:].strip(), children=child_blocks))
+            index = next_index
             continue
 
-        parts = stripped.split(". ", 1)
-        if len(parts) == 2 and parts[0].isdigit():
+        numbered_match = NUMBERED_LIST_RE.match(stripped)
+        if numbered_match:
             flush_paragraph()
-            blocks.append(list_block("numbered_list_item", parts[1].strip()))
+            child_lines, next_index = _collect_indented_child_lines(lines, index + 1, _line_indent(raw_line))
+            child_blocks = markdown_to_blocks("\n".join(child_lines)) if child_lines else []
+            blocks.append(list_block("numbered_list_item", numbered_match.group(1).strip(), children=child_blocks))
+            index = next_index
             continue
 
         paragraph_lines.append(raw_line)
+        index += 1
 
     if in_code:
         flush_code()
     flush_paragraph()
+    return blocks, index
+
+
+def markdown_to_blocks(markdown: str) -> list[dict[str, Any]]:
+    blocks, _ = _parse_blocks(markdown.splitlines())
     return blocks
 
 

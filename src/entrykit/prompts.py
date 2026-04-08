@@ -26,6 +26,31 @@ Requirements:
 - Default to concise-but-complete coverage. If the user explicitly asks for a detailed or exhaustive recap, increase detail instead of compressing aggressively.
 - Keep the rendered Notion page comfortably under the 100-block limit. Prefer merging related sentences into the same paragraph, and use in-block newlines instead of creating a new block for every short line.
 - Treat blank lines as expensive because they often create extra blocks after Markdown-to-Notion conversion. Only split into a new block when the structure materially changes, such as a heading, a real list, a quote, or a code block.
+- For important emphasis inside `body_markdown`, use inline formatting deliberately:
+  - `**text**` for strong emphasis
+  - `*text*` for lighter emphasis
+  - `` `code` `` for inline commands, keys, and identifiers
+  - `==text==` for Notion-style yellow highlight
+  - `{{red|text}}`, `{{blue|text}}`, `{{green|text}}`, `{{yellow_background|text}}` for explicit Notion color annotations when color itself carries meaning
+  - `[label](https://...)` for links
+- When the content is operational or technical, include fenced code blocks with a language whenever code, config, commands, JSON, YAML, env vars, or diffs would make the note more reusable.
+- When the conversation includes a concrete fix, command, config, query, payload, or implementation detail that matters later, preserve a representative snippet in `body_markdown` instead of paraphrasing everything away.
+- Keep `summary` short for browsing. Put detailed code, config, and diagrams in `body_markdown`, not in `summary`.
+- When structure, flow, or system shape matters, include a fenced `mermaid` block only if a small diagram will make the note easier to understand later.
+- Prefer `mermaid` only for a few high-value cases:
+  - architecture or component relationships
+  - step flow or decision flow
+  - state transitions or lifecycle progression
+- Do not add a diagram just because the note is technical. Skip `mermaid` when a short paragraph, list, or table is clearer.
+- Keep any `mermaid` block compact and readable. One small diagram is better than several decorative ones.
+- Use richer Notion block shapes when they help:
+  - `- [ ] task` or `- [x] task` for actionable checklists
+  - `> [!NOTE] ...`, `> [!TIP] ...`, `> [!IMPORTANT] ...`, `> [!WARNING] ...`, or `> [!ERROR] ...` for callouts
+  - `---` for a divider when the section boundary matters
+  - `:::toggle Title` ... `:::` for foldable detail sections
+  - Markdown tables for compact config, parameter, and comparison views when the rows are genuinely easier to scan as a table
+- For visual rhythm, prefer one clean parent bullet with indented child bullets, notes, or code over a long flat list when the items clearly belong together.
+- Notion does not support arbitrary font sizes through this pipeline. Use heading levels or callouts when visual hierarchy matters instead of inventing font-size syntax.
 
 JSON schema:
 {schema}
@@ -42,6 +67,31 @@ We also clarified that related lines can stay in one paragraph block with intern
 
 Prefer one denser paragraph for one idea.
 Only start a new block when the structure really changes.
+
+## Rich formatting example
+
+Use `==highlight==` for the one phrase that should pop.
+Mark a real risk as {{red|high risk}} only when the color adds meaning.
+
+> [!WARNING] Capture the exact config or command when future debugging depends on it.
+
+```yaml
+NOTION_TOKEN: ${{NOTION_TOKEN}}
+NOTION_DATABASE_ID: abc123
+```
+
+:::toggle Verification details
+| Check | Result |
+| --- | --- |
+| doctor | passed |
+| capture | ready |
+:::
+
+```mermaid
+flowchart TD
+  A[Conversation] --> B[KnowledgeEntry JSON]
+  B --> C[Notion blocks]
+```
 ```
 """
 

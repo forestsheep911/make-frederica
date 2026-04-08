@@ -250,6 +250,11 @@ If local execution is available, prefer the supporting CLI for config work:
    - stay comfortably under 100 rendered Notion blocks
    - prefer in-block newlines over splitting every short sentence into a separate paragraph
    - use blank lines only when a real structural boundary is needed
+   - when exact syntax matters, preserve commands, code, config, JSON, YAML, env snippets, or diffs in fenced code blocks with an explicit language
+   - when future understanding depends on flow or structure, use a small fenced `mermaid` diagram instead of over-explaining it in prose
+   - reserve `mermaid` for a few high-value cases: architecture relationships, step or decision flow, and state transitions; do not add diagrams just because the note is technical
+   - use inline emphasis deliberately: `**bold**`, `*italic*`, `` `code` ``, `==highlight==`, and explicit color tags such as `{red|risk}` or `{green|validated}` only when the color carries meaning
+   - use richer block types when they clarify the note: `- [ ]` / `- [x]` for todos, `> [!WARNING] ...` and related callouts for high-signal notices, `:::toggle Title` ... `:::` for foldable detail sections, Markdown tables for compact structured comparisons, and `---` for a real section break
 18. If the draft appears likely to exceed the block budget, compress structure before saving:
    - merge adjacent paragraphs that belong to the same idea
    - avoid one-line paragraphs when they can be grouped
@@ -378,6 +383,13 @@ If local execution is available, prefer the supporting CLI for report work:
 - Prefer fewer, denser paragraphs over many one-line paragraphs.
 - Use lists only when sequence or grouping matters. If not, fold the content back into normal paragraphs.
 - When several short observations belong to one theme, keep them inside one paragraph block with line breaks instead of spending one block per line.
+- When a group of details belongs to one headline point, prefer a parent list item with indented child bullets, notes, or code instead of a long flat list.
+- Keep exact technical material exact. If a command, config key, environment variable, or code sample matters later, carry it into the note as code instead of paraphrasing it away.
+- Keep detailed code and diagrams in `body_markdown`, not in the one-line `summary`. The summary is for scanning; the body is for reuse.
+- When architecture, control flow, or state transitions matter, prefer a compact `mermaid` diagram if it makes the note easier to understand later.
+- Keep diagrams sparse and compact. A paragraph, list, or table should still win when it is clearer than a diagram.
+- Use color as semantic emphasis rather than decoration. A warning, status marker, or key takeaway can justify it; routine narrative text usually should not.
+- Do not promise arbitrary font sizes in Notion. Use heading levels, callouts, and block choice to create hierarchy.
 - Preserve concrete details that make the note useful later.
 - Capture reusable lessons when they exist.
 - Add risks, actions, steps, alternatives, or conclusions only when they are actually present in the source conversation.

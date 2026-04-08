@@ -13,7 +13,9 @@ from entrykit.notion import (
     cleanup_legacy_model_properties,
     desired_database_properties,
     markdown_to_blocks,
+    normalize_code_language,
     render_notion_markdown,
+    rich_text,
     validate_block_limit,
 )
 
@@ -151,6 +153,110 @@ class NotionTests(unittest.TestCase):
     def test_count_markdown_blocks_matches_warning_threshold_shape(self) -> None:
         markdown = "\n\n".join(f"段落 {index}" for index in range(BLOCK_WARNING_THRESHOLD))
         self.assertEqual(count_markdown_blocks(markdown), BLOCK_WARNING_THRESHOLD)
+
+    def test_rich_text_supports_inline_annotations(self) -> None:
+        parts = rich_text(
+            "Use **bold**, *italic*, `code`, ~~old~~, ==focus==, {red|risk}, and [docs](https://example.com)."
+        )
+        plain = "".join(part["text"]["content"] for part in parts)
+        self.assertIn("Use ", plain)
+        self.assertTrue(any(part["annotations"]["bold"] for part in parts))
+        self.assertTrue(any(part["annotations"]["italic"] for part in parts))
+        self.assertTrue(any(part["annotations"]["code"] for part in parts))
+        self.assertTrue(any(part["annotations"]["strikethrough"] for part in parts))
+        self.assertTrue(any(part["annotations"]["color"] == "yellow_background" for part in parts))
+        self.assertTrue(any(part["annotations"]["color"] == "red" for part in parts))
+        self.assertTrue(any(part["text"].get("link", {}).get("url") == "https://example.com" for part in parts))
+
+    def test_markdown_to_blocks_supports_callout_todo_and_divider(self) -> None:
+        blocks = markdown_to_blocks(
+            "> [!WARNING] Keep the exact env values\n\n- [ ] write docs\n- [x] verify capture\n\n---"
+        )
+        self.assertEqual(blocks[0]["type"], "callout")
+        self.assertEqual(blocks[0]["callout"]["color"], "orange_background")
+        self.assertEqual(blocks[1]["type"], "to_do")
+        self.assertFalse(blocks[1]["to_do"]["checked"])
+        self.assertEqual(blocks[2]["type"], "to_do")
+        self.assertTrue(blocks[2]["to_do"]["checked"])
+        self.assertEqual(blocks[3]["type"], "divider")
+
+    def test_code_block_normalizes_common_language_aliases(self) -> None:
+        blocks = markdown_to_blocks("```yml\nkey: value\n```")
+        self.assertEqual(blocks[0]["type"], "code")
+        self.assertEqual(blocks[0]["code"]["language"], "yaml")
+        self.assertEqual(normalize_code_language("toml"), "plain text")
+        mermaid_blocks = markdown_to_blocks("```mermaid\nflowchart TD\nA-->B\n```")
+        self.assertEqual(mermaid_blocks[0]["code"]["language"], "mermaid")
+
+    def test_markdown_to_blocks_supports_toggle_blocks(self) -> None:
+        blocks = markdown_to_blocks(
+            ":::toggle Debug details\n"
+            "Keep the short summary above.\n\n"
+            "```bash\n"
+            "entrykit doctor\n"
+            "```\n"
+            ":::"
+        )
+        self.assertEqual(len(blocks), 1)
+        self.assertEqual(blocks[0]["type"], "toggle")
+        self.assertEqual(blocks[0]["toggle"]["rich_text"][0]["text"]["content"], "Debug details")
+        self.assertEqual(blocks[0]["toggle"]["children"][0]["type"], "paragraph")
+        self.assertEqual(blocks[0]["toggle"]["children"][1]["type"], "code")
+
+    def test_markdown_to_blocks_supports_markdown_tables(self) -> None:
+        blocks = markdown_to_blocks(
+            "| Key | Value |\n"
+            "| --- | --- |\n"
+            "| Model | gpt-5.4 |\n"
+            "| Env | production |"
+        )
+        self.assertEqual(len(blocks), 1)
+        self.assertEqual(blocks[0]["type"], "table")
+        self.assertTrue(blocks[0]["table"]["has_column_header"])
+        self.assertEqual(blocks[0]["table"]["table_width"], 2)
+        self.assertEqual(len(blocks[0]["table"]["children"]), 3)
+        self.assertEqual(
+            blocks[0]["table"]["children"][1]["table_row"]["cells"][0][0]["text"]["content"],
+            "Model",
+        )
+
+    def test_markdown_to_blocks_supports_nested_list_children(self) -> None:
+        blocks = markdown_to_blocks(
+            "- Summary\n"
+            "  - Detail A\n"
+            "  - Detail B\n"
+            "    - Deep detail\n"
+            "- Next item"
+        )
+        self.assertEqual(len(blocks), 2)
+        self.assertEqual(blocks[0]["type"], "bulleted_list_item")
+        first_children = blocks[0]["bulleted_list_item"]["children"]
+        self.assertEqual(len(first_children), 2)
+        self.assertEqual(first_children[0]["type"], "bulleted_list_item")
+        self.assertEqual(first_children[1]["type"], "bulleted_list_item")
+        deep_children = first_children[1]["bulleted_list_item"]["children"]
+        self.assertEqual(deep_children[0]["type"], "bulleted_list_item")
+        self.assertEqual(
+            deep_children[0]["bulleted_list_item"]["rich_text"][0]["text"]["content"],
+            "Deep detail",
+        )
+
+    def test_markdown_to_blocks_supports_list_item_mixed_children(self) -> None:
+        blocks = markdown_to_blocks(
+            "- Deployment checklist\n"
+            "  Keep the command below for the real run.\n\n"
+            "  ```bash\n"
+            "  entrykit capture --input captured.json\n"
+            "  ```\n"
+            "  - [x] Verified env"
+        )
+        self.assertEqual(len(blocks), 1)
+        self.assertEqual(blocks[0]["type"], "bulleted_list_item")
+        children = blocks[0]["bulleted_list_item"]["children"]
+        self.assertEqual(children[0]["type"], "paragraph")
+        self.assertEqual(children[1]["type"], "code")
+        self.assertEqual(children[2]["type"], "to_do")
+        self.assertTrue(children[2]["to_do"]["checked"])
 
     def test_desired_database_properties(self) -> None:
         properties = desired_database_properties()
